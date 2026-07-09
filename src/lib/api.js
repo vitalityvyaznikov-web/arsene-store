@@ -88,9 +88,11 @@ export async function createOrder(order, userId) {
     total: order.total,
     status: "Обработка",
   };
-  const { data, error } = await supabase.from("orders").insert(row).select().single();
+  // без .select(): чтение только что вставленной строки требует прав SELECT,
+  // которых у гостя нет — данные заказа у нас и так есть
+  const { error } = await supabase.from("orders").insert(row);
   if (error) throw error;
-  return normalizeOrder(data);
+  return { ...order, status: "Обработка", createdAt: Date.now(), userId: userId || null };
 }
 
 export async function fetchOrders() {
