@@ -60,23 +60,31 @@ const DEFAULT_SETTINGS = {
   hours: "Пн–Вс, 10:00–22:00",
   instagram: "https://instagram.com/arsene",
   telegram: "https://t.me/arsene_store",
+  logo: "",                            // аватарка магазина (ссылка на файл)
   managerTg: "@pinxty",                // @username менеджера для заказов
   sbpPhone: "+7 911 098 51 28",        // номер для перевода по СБП
   sbpBank: "Т-Банк",
   sbpName: "Роберт В.",
 };
 
-const CATEGORIES = ["Всё", "Женское", "Мужское", "Аксессуары"];
-const SHOP_CATS = ["Женское", "Мужское", "Аксессуары"];
+const CATEGORIES = ["Всё", "Женское", "Мужское", "Обувь", "Аксессуары"];
+const SHOP_CATS = ["Женское", "Мужское", "Обувь", "Аксессуары"];
 const TAGS = ["", "Новинка", "Sale"];
 const TYPES = [
   { v: "coat", l: "Пальто / жакет" }, { v: "shirt", l: "Рубашка" }, { v: "sweater", l: "Свитер / худи" },
   { v: "dress", l: "Платье" }, { v: "skirt", l: "Юбка" }, { v: "pants", l: "Брюки / джинсы" },
+  { v: "sneakers", l: "Кроссовки" }, { v: "boots", l: "Ботинки" }, { v: "shoes", l: "Туфли" },
   { v: "bag", l: "Сумка" }, { v: "belt", l: "Ремень" }, { v: "scarf", l: "Платок" },
 ];
 const typeLabel = (v) => TYPES.find((t) => t.v === v)?.l || v;
 const uniq = (arr) => [...new Set(arr.filter(Boolean))];
-const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Единый", "36", "38", "40", "42", "44"];
+
+/* Категории с разными размерными сетками */
+const ONE_SIZE_CAT = "Аксессуары";        // только «Единый»
+const SHOE_CAT = "Обувь";                 // обувные размеры
+const CLOTHES_SIZE_SUGG = ["XS", "S", "M", "L", "XL", "XXL"];
+const SHOE_SIZE_SUGG = ["35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46"];
+const sizeSuggestions = (cat) => (cat === SHOE_CAT ? SHOE_SIZE_SUGG : CLOTHES_SIZE_SUGG);
 
 /* Цена в рублях: 18900 -> «18 900 ₽» */
 const money = (n) => `${(Number(n) || 0).toLocaleString("ru-RU")} ₽`;
@@ -230,15 +238,25 @@ function Store() {
   const openProduct = (id) => { setSelectedId(id); go("product"); };
   const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("catalog"); };
 
+  // нельзя заказать больше, чем есть в наличии
   const addToCart = (id, size) => {
+    const p = byId(id);
+    const max = p?.stock ?? 0;
     const key = `${id}-${size}`;
+    const current = cart.find((i) => i.key === key)?.qty ?? 0;
+    if (current >= max) return { ok: false, error: max === 0 ? "Товара нет в наличии" : `Больше нет в наличии — доступно ${max} шт` };
     setCart((c) => {
       const found = c.find((i) => i.key === key);
       if (found) return c.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i));
       return [...c, { key, id, size, qty: 1 }];
     });
+    return { ok: true };
   };
-  const changeQty = (key, d) => setCart((c) => c.map((i) => (i.key === key ? { ...i, qty: i.qty + d } : i)).filter((i) => i.qty > 0));
+  const changeQty = (key, d) => setCart((c) => c.map((i) => {
+    if (i.key !== key) return i;
+    const max = byId(i.id)?.stock ?? 0;
+    return { ...i, qty: Math.min(i.qty + d, max) };
+  }).filter((i) => i.qty > 0));
   const removeItem = (key) => setCart((c) => c.filter((i) => i.key !== key));
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
@@ -313,7 +331,7 @@ function Store() {
       <div className="announce">{settings.announce}</div>
 
       <Header
-        brand={settings.brand} cartCount={cartCount} favCount={favorites.length} isAdmin={isAdmin} user={user}
+        brand={settings.brand} logo={settings.logo} cartCount={cartCount} favCount={favorites.length} isAdmin={isAdmin} user={user}
         onLogo={() => openCatalog("Всё")} onCart={() => go("cart")} onNav={openCatalog} onSearch={openSearch}
         onFavs={() => go("favorites")} onMenu={() => setMenuOpen(true)}
         onAccount={() => go(accountTarget)} onLogout={logout}
@@ -335,6 +353,7 @@ function Store() {
       )}
       {view === "product" && selectedId && byId(selectedId) && (
         <ProductView key={selectedId} product={byId(selectedId)} onBack={() => openCatalog()} onAdd={addToCart}
+          inCart={cart.filter((i) => i.id === selectedId).reduce((s, i) => s + i.qty, 0)}
           onGoCart={() => go("cart")} isFav={favorites.includes(selectedId)} onFav={() => toggleFav(selectedId)} />
       )}
       {view === "favorites" && (
@@ -383,7 +402,9 @@ function Header({ brand, cartCount, favCount, isAdmin, onLogo, onCart, onNav, on
         <button className="nav-link nav-sale" onClick={() => onNav("Всё")}>Sale</button>
         {isAdmin && <button className="nav-link nav-admin" onClick={onAccount}>Админ</button>}
       </nav>
-      <button className="wordmark" onClick={onLogo}>{brand}</button>
+      <button className="wordmark" onClick={onLogo}>
+        {logo ? <img className="brand-logo" src={logo} alt={brand} /> : brand}
+      </button>
       <div className="header-actions">
         <button className="icon-btn only-desktop" aria-label="Поиск" onClick={onSearch}><Search size={19} /></button>
         <button className="icon-btn cart-btn only-desktop" aria-label="Избранное" onClick={onFavs}>
@@ -410,13 +431,18 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [open, setOpen] = useState(false);
 
-  // доступные значения фильтров — из всех товаров
+  // при смене раздела фильтры сбрасываем: у обуви и одежды разные размеры/бренды
+  useEffect(() => { setFilters(EMPTY_FILTERS); }, [activeCat]);
+
+  // варианты фильтров считаем только по товарам текущего раздела
+  const scoped = activeCat === "Всё" ? products : products.filter((p) => p.cat === activeCat);
+  const sortSizes = (a, b) => (isNaN(a) || isNaN(b) ? 0 : Number(a) - Number(b));
   const opts = {
-    types: uniq(products.map((p) => p.type)),
-    brands: uniq(products.map((p) => p.brand)),
-    sizes: uniq(products.flatMap((p) => p.sizes || [])),
-    colors: uniq(products.flatMap((p) => p.colors || [])),
-    fabrics: uniq(products.flatMap((p) => fabricsOf(p.material))).sort(),
+    types: uniq(scoped.map((p) => p.type)),
+    brands: uniq(scoped.map((p) => p.brand)),
+    sizes: uniq(scoped.flatMap((p) => p.sizes || [])).sort(sortSizes),
+    colors: uniq(scoped.flatMap((p) => p.colors || [])),
+    fabrics: uniq(scoped.flatMap((p) => fabricsOf(p.material))).sort(),
   };
 
   const toggle = (key, val) => setFilters((f) => ({
@@ -489,7 +515,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
                 ))}</div>
               </FilterGroup>
             )}
-            <FilterGroup title="Размер">
+            <FilterGroup title={activeCat === SHOE_CAT ? "Размер обуви" : "Размер"}>
               <div className="chip-wrap">{opts.sizes.map((s) => (
                 <button key={s} className={`fchip ${filters.sizes.includes(s) ? "on" : ""}`} onClick={() => toggle("sizes", s)}>{s}</button>
               ))}</div>
@@ -572,16 +598,21 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
 }
 
 /* --------------------------- Страница товара --------------------------- */
-function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav }) {
+function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0 }) {
   const images = getGallery(p);
   const [active, setActive] = useState(0);
   const singleSize = p.sizes.length === 1;
   const [size, setSize] = useState(singleSize ? p.sizes[0] : null);
   const [added, setAdded] = useState(false);
   const [askSize, setAskSize] = useState(false);
+  const [stockErr, setStockErr] = useState("");
+  const soldOut = p.stock <= 0;
+  const maxedOut = !soldOut && inCart >= p.stock;
 
   const doAdd = (sz) => {
-    onAdd(p.id, sz);
+    const r = onAdd(p.id, sz);
+    if (r && !r.ok) { setStockErr(r.error); setTimeout(() => setStockErr(""), 2500); return; }
+    setStockErr("");
     setAdded(true); setTimeout(() => setAdded(false), 1800);
   };
   const handleAdd = () => {
@@ -626,13 +657,15 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav }) {
           </div>
 
           <div className="add-row">
-            <button className="btn-primary btn-block" onClick={handleAdd} disabled={p.stock <= 0}>
-              {p.stock <= 0 ? "Нет в наличии" : added ? <><Check size={16} /> Добавлено</> : "Добавить в корзину"}
+            <button className="btn-primary btn-block" onClick={handleAdd} disabled={soldOut || maxedOut}>
+              {soldOut ? "Нет в наличии" : maxedOut ? "Всё в корзине" : added ? <><Check size={16} /> Добавлено</> : "Добавить в корзину"}
             </button>
             <button className={`fav-btn ${isFav ? "fav-on" : ""}`} onClick={onFav} aria-label="В избранное" title="В избранное">
               <Heart size={18} fill={isFav ? "currentColor" : "none"} />
             </button>
           </div>
+          {stockErr && <div className="stock-err">{stockErr}</div>}
+          {maxedOut && !stockErr && <div className="stock-note">В корзине уже все доступные {p.stock} шт</div>}
           {added && <button className="link-btn go-cart" onClick={onGoCart}>Перейти в корзину →</button>}
 
           <div className="specs">
@@ -698,8 +731,9 @@ function CartView({ cart, byId, onChangeQty, onRemove, onShop, onOpen, onCheckou
                   <div className="qty">
                     <button onClick={() => onChangeQty(i.key, -1)} aria-label="Меньше"><Minus size={14} /></button>
                     <span>{i.qty}</span>
-                    <button onClick={() => onChangeQty(i.key, 1)} aria-label="Больше"><Plus size={14} /></button>
+                    <button onClick={() => onChangeQty(i.key, 1)} disabled={i.qty >= p.stock} aria-label="Больше"><Plus size={14} /></button>
                   </div>
+                  {i.qty >= p.stock && <div className="cart-limit">Максимум: {p.stock} шт в наличии</div>}
                 </div>
                 <div className="cart-right"><div className="cart-price">{money(p.price * i.qty)}</div>
                   <button className="remove" onClick={() => onRemove(i.key)}>Убрать</button></div>
@@ -1212,7 +1246,18 @@ function AdminOrders({ orders, onStatus }) {
 /* -------------------------- Настройки сайта -------------------------- */
 function SettingsForm({ settings, onSave, onCancel }) {
   const [f, setF] = useState({ ...DEFAULT_SETTINGS, ...settings });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const uploadLogo = async (fileList) => {
+    const file = fileList?.[0];
+    if (!file) return;
+    setBusy(true); setErr("");
+    try { set("logo", await processImage(file)); }
+    catch (e) { setErr("Не удалось загрузить аватарку: " + (e.message || "ошибка")); }
+    setBusy(false);
+  };
   return (
     <section className="admin form-page">
       <button className="back-link" onClick={onCancel}><ArrowLeft size={16} /> К товарам</button>
@@ -1222,6 +1267,22 @@ function SettingsForm({ settings, onSave, onCancel }) {
         <div className="form-block">
           <h3 className="block-title">Бренд и баннер</h3>
           <Field label="Название магазина"><input value={f.brand} onChange={(e) => set("brand", e.target.value)} /></Field>
+          <Field label="Аватарка магазина (логотип)">
+            <div className="logo-row">
+              <div className="logo-preview">
+                {f.logo ? <img src={f.logo} alt="Логотип" /> : <span>нет</span>}
+              </div>
+              <div className="logo-actions">
+                <label className="btn-ghost logo-btn">
+                  {busy ? "Загрузка…" : f.logo ? "Заменить" : "Загрузить"}
+                  <input type="file" accept="image/*" hidden onChange={(e) => { uploadLogo(e.target.files); e.target.value = ""; }} />
+                </label>
+                {f.logo && <button className="link-btn danger" onClick={() => set("logo", "")}>Убрать</button>}
+              </div>
+            </div>
+            {err && <div className="login-err">{err}</div>}
+            <p className="form-hint">Если аватарка не задана, в шапке показывается название магазина.</p>
+          </Field>
           <Field label="Строка-баннер вверху"><input value={f.announce} onChange={(e) => set("announce", e.target.value)} /></Field>
         </div>
 
@@ -1348,6 +1409,15 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
   const [newType, setNewType] = useState("");
   const [addingType, setAddingType] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+
+  const isAccessory = f.cat === ONE_SIZE_CAT;
+
+  // категория задаёт размерную сетку: аксессуары — только «Единый»
+  const changeCat = (cat) => setF((s) => {
+    if (cat === ONE_SIZE_CAT) return { ...s, cat, sizes: ["Единый"] };
+    const cleaned = s.sizes.filter((x) => x !== "Единый");
+    return { ...s, cat, sizes: cleaned.length ? cleaned : (cat === SHOE_CAT ? ["40", "41", "42"] : ["S", "M", "L"]) };
+  });
   const brandOptions = uniq((products || []).map((p) => p.brand));
   const tagOptions = uniq(["Новинка", "Sale", ...(products || []).map((p) => p.tag)]);
   const allTypes = [...TYPES, ...extraTypes.map((l) => ({ v: l, l }))];
@@ -1380,14 +1450,16 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
   const save = () => {
     if (!f.name.trim()) return setErr("Укажите название товара");
     if (!f.price || Number(f.price) <= 0) return setErr("Укажите цену");
-    if (!f.sizes.length) return setErr("Добавьте хотя бы один размер");
+    if (isAccessory && (f.sizes.length !== 1 || f.sizes[0] !== "Единый")) return setErr("У аксессуаров размер только «Единый»");
+    if (!isAccessory && !f.sizes.length) return setErr("Добавьте хотя бы один размер");
+    if (!isAccessory && f.sizes.includes("Единый")) return setErr("«Единый» доступен только аксессуарам");
     setErr("");
     onSave({
       name: f.name.trim(), brand: f.brand.trim(), cat: f.cat, type: f.type, price: Number(f.price),
       oldPrice: f.oldPrice ? Number(f.oldPrice) : 0, material: f.material.trim(), care: f.care.trim(),
       desc: f.desc.trim(), tag: f.tag.trim() || undefined,
       stock: Math.max(0, parseInt(f.stock, 10) || 0), delivery: f.delivery.trim() || "1–3 дня по России",
-      sizes: f.sizes, colors: f.colors.length ? f.colors : ["#8f8677"], images: f.images,
+      sizes: isAccessory ? ["Единый"] : f.sizes, colors: f.colors.length ? f.colors : ["#8f8677"], images: f.images,
     });
   };
 
@@ -1410,7 +1482,7 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
             </Field>
           </div>
           <div className="row-2">
-            <Field label="Категория (пол)"><select value={f.cat} onChange={(e) => set("cat", e.target.value)}>{SHOP_CATS.map((c) => <option key={c}>{c}</option>)}</select></Field>
+            <Field label="Категория"><select value={f.cat} onChange={(e) => changeCat(e.target.value)}>{SHOP_CATS.map((c) => <option key={c}>{c}</option>)}</select></Field>
             <Field label="Тип вещи">
               <select value={f.type} onChange={(e) => { if (e.target.value === "__new") setAddingType(true); else set("type", e.target.value); }}>
                 {allTypes.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
@@ -1433,8 +1505,11 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
             <Field label="В наличии, шт"><input type="number" min="0" value={f.stock} onChange={(e) => set("stock", e.target.value)} placeholder="10" /></Field>
             <Field label="Сроки доставки"><input value={f.delivery} onChange={(e) => set("delivery", e.target.value)} placeholder="1–3 дня по России" /></Field>
           </div>
-          <Field label="Доступные размеры">
-            <TokenEditor tokens={f.sizes} onChange={(v) => set("sizes", v)} suggestions={COMMON_SIZES} placeholder="Добавить размер и Enter" />
+          <Field label={isAccessory ? "Размер" : f.cat === SHOE_CAT ? "Доступные размеры обуви" : "Доступные размеры"}>
+            {isAccessory
+              ? <div className="fixed-size">Единый <span>— у аксессуаров всегда один размер</span></div>
+              : <TokenEditor tokens={f.sizes} onChange={(v) => set("sizes", v.filter((x) => x !== "Единый"))}
+                  suggestions={sizeSuggestions(f.cat)} placeholder="Добавить размер и Enter" />}
           </Field>
           <Field label="Цвета">
             <ColorEditor colors={f.colors} onChange={(v) => set("colors", v)} />
@@ -1551,6 +1626,9 @@ const GARMENTS = {
   dress: (c, d) => (<g><path d="M72,52 L58,66 L64,98 L74,94 L80,124 L52,250 L148,250 L120,124 L126,94 L136,98 L142,66 L128,52 L114,60 L100,70 L86,60 Z" fill={c} /><path d="M86,60 L100,70 L114,60" fill="none" stroke={d} strokeWidth="2.5" opacity=".5" /><path d="M80,124 L120,124" stroke={d} strokeWidth="2.5" opacity=".4" /></g>),
   skirt: (c, d) => (<g><path d="M72,70 L128,70 L126,84 L152,244 L48,244 L74,84 Z" fill={c} /><rect x="72" y="66" width="56" height="14" fill={d} opacity=".85" /><g stroke={d} strokeWidth="1.6" opacity=".3"><line x1="86" y1="90" x2="72" y2="244" /><line x1="100" y1="90" x2="100" y2="244" /><line x1="114" y1="90" x2="128" y2="244" /></g></g>),
   pants: (c, d) => (<g><path d="M74,44 L126,44 L134,250 L106,250 L100,140 L94,250 L66,250 Z" fill={c} /><rect x="74" y="44" width="52" height="12" fill={d} opacity=".8" /><path d="M100,60 L100,140" stroke={d} strokeWidth="1.6" opacity=".3" /></g>),
+  sneakers: (c, d) => (<g><path d="M40,168 L44,132 L74,128 L96,146 L146,158 Q160,161 160,172 L160,180 L40,180 Z" fill={c} /><path d="M40,172 L160,172 L160,182 L40,182 Z" fill={d} opacity=".85" /><path d="M74,130 L92,150" stroke={d} strokeWidth="3" opacity=".5" /><path d="M84,136 L100,156" stroke={d} strokeWidth="3" opacity=".5" /><circle cx="132" cy="162" r="3" fill={d} opacity=".5" /></g>),
+  boots: (c, d) => (<g><path d="M66,70 L104,70 L106,140 L150,158 Q160,162 160,172 L160,182 L64,182 Z" fill={c} /><rect x="64" y="176" width="96" height="10" rx="2" fill={d} opacity=".85" /><path d="M70,96 L104,96" stroke={d} strokeWidth="2.5" opacity=".45" /><path d="M70,116 L105,116" stroke={d} strokeWidth="2.5" opacity=".45" /></g>),
+  shoes: (c, d) => (<g><path d="M48,164 Q52,138 78,136 L104,150 L146,160 Q158,163 158,172 L158,178 L48,178 Z" fill={c} /><path d="M48,172 L158,172 L158,180 L48,180 Z" fill={d} opacity=".85" /><path d="M78,138 Q96,146 104,152" stroke={d} strokeWidth="2.5" fill="none" opacity=".5" /></g>),
   bag: (c, d) => (<g><path d="M78,96 Q78,64 100,64 Q122,64 122,96" fill="none" stroke={d} strokeWidth="7" /><path d="M62,104 L138,104 L146,214 L54,214 Z" fill={c} /><rect x="90" y="150" width="20" height="10" rx="2" fill={d} opacity=".7" /></g>),
   belt: (c, d) => (<g><rect x="28" y="118" width="144" height="24" rx="3" fill={c} /><rect x="86" y="112" width="30" height="36" rx="4" fill="none" stroke={d} strokeWidth="6" /><circle cx="101" cy="130" r="3" fill={d} /></g>),
   scarf: (c, d) => (<g><path d="M62,64 L138,64 L150,92 L138,200 L100,182 L62,200 L74,92 Z" fill={c} /><path d="M74,92 L138,92" stroke={d} strokeWidth="2" opacity=".35" /><rect x="66" y="70" width="68" height="6" fill={d} opacity=".25" /></g>),
@@ -1995,6 +2073,27 @@ a.footer-link{text-decoration:none}
 .status-select select{padding:10px 12px;border:1px solid var(--line);border-radius:3px;background:var(--paper);font-family:inherit;font-size:14px;color:var(--ink);min-width:180px}
 .quick-actions{display:flex;gap:8px}
 .btn-primary.sm,.btn-ghost.sm{padding:10px 16px;font-size:12px}
+
+/* аватарка магазина в шапке */
+.brand-logo{height:34px;width:auto;max-width:170px;object-fit:contain;display:block}
+@media(max-width:900px){.brand-logo{height:28px;max-width:130px}}
+
+/* лимит остатка */
+.stock-err{background:rgba(124,38,52,.1);color:var(--accent);font-size:13px;padding:10px 12px;border-radius:3px;margin:-22px 0 22px}
+.stock-note{font-size:13px;color:var(--ink-soft);margin:-22px 0 22px}
+.cart-limit{font-size:12px;color:var(--accent);margin-top:7px}
+.qty button:disabled{opacity:.3;cursor:not-allowed}
+
+/* фиксированный размер у аксессуаров */
+.fixed-size{display:flex;align-items:baseline;gap:8px;padding:12px 14px;border:1px solid var(--line);border-radius:3px;background:var(--card);font-size:14px}
+.fixed-size span{color:var(--ink-soft);font-size:12px}
+
+/* загрузка аватарки */
+.logo-row{display:flex;align-items:center;gap:16px}
+.logo-preview{width:72px;height:72px;flex-shrink:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card);display:grid;place-items:center;color:var(--ink-soft);font-size:12px}
+.logo-preview img{width:100%;height:100%;object-fit:contain;display:block}
+.logo-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.logo-btn{cursor:pointer;padding:10px 18px}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 `;
