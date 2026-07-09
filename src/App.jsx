@@ -393,7 +393,7 @@ function Store() {
 }
 
 /* -------------------------------- Шапка -------------------------------- */
-function Header({ brand, cartCount, favCount, isAdmin, onLogo, onCart, onNav, onMenu, onAccount, onLogout, onSearch, onFavs }) {
+function Header({ brand, logo, cartCount, favCount, isAdmin, onLogo, onCart, onNav, onMenu, onAccount, onLogout, onSearch, onFavs }) {
   return (
     <header className="header">
       <button className="icon-btn only-mobile" aria-label="Меню" onClick={onMenu}><Menu size={20} /></button>
