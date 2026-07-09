@@ -68,8 +68,6 @@ const DEFAULT_SETTINGS = {
 
 const CATEGORIES = ["Всё", "Женское", "Мужское", "Аксессуары"];
 const SHOP_CATS = ["Женское", "Мужское", "Аксессуары"];
-const CLOTHES_SIZES = ["XS", "S", "M", "L", "XL"];
-const ONE_SIZE = ["Единый"];
 const TAGS = ["", "Новинка", "Sale"];
 const TYPES = [
   { v: "coat", l: "Пальто / жакет" }, { v: "shirt", l: "Рубашка" }, { v: "sweater", l: "Свитер / худи" },
@@ -79,6 +77,9 @@ const TYPES = [
 const typeLabel = (v) => TYPES.find((t) => t.v === v)?.l || v;
 const uniq = (arr) => [...new Set(arr.filter(Boolean))];
 const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Единый", "36", "38", "40", "42", "44"];
+
+/* Цена в рублях: 18900 -> «18 900 ₽» */
+const money = (n) => `${(Number(n) || 0).toLocaleString("ru-RU")} ₽`;
 
 /* -------- Валидация форм заказа -------- */
 const digitsOnly = (s) => (s || "").replace(/\D/g, "");
@@ -103,42 +104,6 @@ const isValidName = (s) => {
   return parts.every((w) => /^[A-Za-zА-Яа-яЁё]{2,}(-[A-Za-zА-Яа-яЁё]{2,})?$/.test(w) && /[AEIOUaeiouАЕЁИОУЫЭЮЯаеёиоуыэюя]/.test(w));
 };
 const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s || "");
-// Луна — проверка номера карты
-function luhnValid(num) {
-  const d = digitsOnly(num);
-  if (d.length < 13) return false;
-  let sum = 0, alt = false;
-  for (let i = d.length - 1; i >= 0; i--) {
-    let n = parseInt(d[i], 10);
-    if (alt) { n *= 2; if (n > 9) n -= 9; }
-    sum += n; alt = !alt;
-  }
-  return sum % 10 === 0;
-}
-const formatCard = (raw) => digitsOnly(raw).slice(0, 19).replace(/(.{4})/g, "$1 ").trim();
-const formatExpiry = (raw) => { const d = digitsOnly(raw).slice(0, 4); return d.length > 2 ? d.slice(0, 2) + "/" + d.slice(2) : d; };
-// определение платёжной системы по номеру
-function cardBrand(num) {
-  const d = digitsOnly(num);
-  if (/^4/.test(d)) return { name: "Visa", lengths: [13, 16, 19], cvc: 3 };
-  if (/^220[0-4]/.test(d)) return { name: "Мир", lengths: [16, 19], cvc: 3 };
-  if (/^(5[1-5]|222[1-9]|22[3-9]|2[3-6]|27[01]|2720)/.test(d)) return { name: "Mastercard", lengths: [16], cvc: 3 };
-  if (/^3[47]/.test(d)) return { name: "American Express", lengths: [15], cvc: 4 };
-  return null;
-}
-// «реальность» карты: известная платёжная система + верная длина + контрольная сумма Луна
-function isRealCard(num) {
-  const d = digitsOnly(num);
-  const b = cardBrand(d);
-  return !!b && b.lengths.includes(d.length) && luhnValid(d);
-}
-const expiryValid = (exp) => {
-  if (!/^\d{2}\/\d{2}$/.test(exp)) return false;
-  const [mm, yy] = exp.split("/").map(Number);
-  if (mm < 1 || mm > 12) return false;
-  const end = new Date(2000 + yy, mm, 0, 23, 59, 59);
-  return end >= new Date();
-};
 // ткани из строки состава: «80% шерсть, 20% полиамид» → [шерсть, полиамид]
 const fabricsOf = (material) => (material || "").split(",").map((x) => x.replace(/[\d%]/g, "").trim().toLowerCase()).filter(Boolean);
 const capit = (s) => s.charAt(0).toUpperCase() + s.slice(1);
