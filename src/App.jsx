@@ -185,6 +185,7 @@ function Store() {
   const [user, setUser] = useState(null);      // текущий покупатель {id,email,name,phone}
   const [orders, setOrders] = useState([]);
   const [lastOrderId, setLastOrderId] = useState(null);
+  const [tgFallback, setTgFallback] = useState("");
   const [booting, setBooting] = useState(true);
   const [fatal, setFatal] = useState("");
   const [fade, setFade] = useState(false);
@@ -474,9 +475,9 @@ function Store() {
           onShop={() => openCatalog("Всё")} onOpen={openProduct} onCheckout={() => go("checkout")} />
       )}
       {view === "checkout" && (
-        <CheckoutView cart={cart} byId={byId} user={user} settings={settings} onBack={() => go("cart")} onPlace={placeOrder} />
+        <CheckoutView cart={cart} byId={byId} user={user} settings={settings} onBack={() => go("cart")} onPlace={placeOrder} onTgFallback={setTgFallback} />
       )}
-      {view === "success" && <SuccessView brand={settings.brand} orderId={lastOrderId} canTrack={!!user} onOrders={() => go("orders")} onShop={() => openCatalog("Всё")} />}
+      {view === "success" && <SuccessView brand={settings.brand} orderId={lastOrderId} canTrack={!!user} tgLink={tgFallback} onOrders={() => go("orders")} onShop={() => { setTgFallback(""); openCatalog("Всё"); }} />}
       {view === "orders" && (
         user
           ? <OrdersView orders={orders.filter((o) => o.userId === user.id)} onShop={() => openCatalog("Всё")} onBack={() => go("account")} />
@@ -908,7 +909,7 @@ function FavoritesView({ products, onOpen, onFav, onShop }) {
 }
 
 /* --------------------------- Оформление --------------------------- */
-function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
+function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallback }) {
   const items = cart.map((i) => ({ ...i, p: byId(i.id) })).filter((i) => i.p);
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
   const shipping = subtotal >= 5000 ? 0 : 390;
@@ -959,19 +960,24 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
       subtotal, shipping, total,
     };
 
-    // окно открываем сразу, иначе браузер посчитает это всплывающим окном и заблокирует
+    // вкладку открываем сразу по клику, иначе браузер сочтёт её всплывающей и заблокирует.
+    // без "noopener" — иначе window.open вернёт null и вкладкой нельзя будет управлять
     const msg = buildMessage(ref);
     const uname = tgUsername(settings.managerTg);
     const url = uname
       ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}`
       : `https://t.me/share/url?url=${encodeURIComponent(settings.telegram || "https://t.me")}&text=${encodeURIComponent(msg)}`;
-    const tab = window.open("", "_blank", "noopener");
+    let tab = null;
+    try { tab = window.open("about:blank", "_blank"); if (tab) tab.opener = null; } catch (e) { tab = null; }
 
     const res = await onPlace(order);
     setBusy(false);
 
     if (res && !res.ok) { if (tab) tab.close(); setErr(res.error); return; }
-    if (tab) tab.location = url; else window.open(url, "_blank", "noopener");
+
+    if (tab) { tab.location.href = url; return; }
+    // вкладку заблокировал браузер — покажем ссылку на экране «Заказ оформлен»
+    onTgFallback?.(url);
   };
 
   return (
@@ -1042,7 +1048,9 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
           <div className="sum-row"><span>Доставка</span><span>{shipping === 0 ? "Бесплатно" : money(shipping)}</span></div>
           <div className="sum-row total"><span>К оплате</span><span className="total-sum">{money(total)}</span></div>
           {err && <div className="login-err">{err}</div>}
-          <button className="btn-primary btn-block" onClick={submit} disabled={busy}><Send size={16} /> {busy ? "Оформляем…" : "Оформить и написать менеджеру"}</button>
+          <button className="btn-primary btn-block" onClick={submit} disabled={busy}>
+            <Send size={16} /> {busy ? "Оформляем…" : "Оформить и написать менеджеру"}
+          </button>
           <p className="summary-note">По кнопке откроется Telegram с готовым сообщением о заказе.</p>
         </aside>
       </div>
@@ -1051,16 +1059,21 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
 }
 
 /* --------------------------- Заказ принят --------------------------- */
-function SuccessView({ brand, orderId, canTrack, onOrders, onShop }) {
+function SuccessView({ brand, orderId, canTrack, tgLink, onOrders, onShop }) {
   return (
     <section className="success">
       <div className="success-icon"><Check size={34} /></div>
       <h1 className="success-title">Заказ оформлен</h1>
       {orderId && <div className="success-order">Номер заказа: <b>{orderId}</b></div>}
       <p className="success-sub">Спасибо за покупку в {brand}. Заказ отправлен на подтверждение — статус можно отслеживать в личном кабинете.</p>
+      {tgLink && (
+        <a className="btn-primary tg-open" href={tgLink} target="_blank" rel="noreferrer">
+          <Send size={16} /> Отправить заказ менеджеру
+        </a>
+      )}
       <div className="success-actions">
-        {canTrack && <button className="btn-primary" onClick={onOrders}>Мои заказы</button>}
-        <button className={canTrack ? "btn-ghost" : "btn-primary"} onClick={onShop}>Вернуться в магазин</button>
+        {canTrack && <button className={tgLink ? "btn-ghost" : "btn-primary"} onClick={onOrders}>Мои заказы</button>}
+        <button className={canTrack || tgLink ? "btn-ghost" : "btn-primary"} onClick={onShop}>Вернуться в магазин</button>
       </div>
     </section>
   );
@@ -1843,21 +1856,26 @@ const css = `
 .chip{padding:8px 16px;border:1px solid var(--line);border-radius:100px;font-size:13px;color:var(--ink-soft);transition:all .2s}
 .chip:hover{border-color:var(--ink);color:var(--ink)}
 .chip-active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.grid{display:grid;gap:26px 22px;grid-template-columns:repeat(4,1fr)}
-@media(max-width:1080px){.grid{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr);gap:20px 14px}}
-@media(max-width:420px){.grid{grid-template-columns:1fr}}
-.card{display:flex;flex-direction:column;cursor:pointer}
+.grid{display:grid;gap:26px 22px;grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1080px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 14px}}
+@media(max-width:420px){.grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){
+  .card-top{flex-direction:column;align-items:flex-start;gap:4px}
+  .card-price{font-size:13px}
+  .card-name{font-size:14px}
+}
+.card{display:flex;flex-direction:column;cursor:pointer;min-width:0}
 .card-media{position:relative;aspect-ratio:1/1;border-radius:3px;overflow:hidden;background:#fff}
 .badge{position:absolute;top:12px;left:12px;z-index:2;background:var(--paper);color:var(--ink);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:2px}
 .badge-sale{background:var(--accent);color:#fff}
 .wish{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:50%;background:rgba(250,249,246,.85);display:grid;place-items:center;color:var(--ink);opacity:0;transition:opacity .25s}
 .card:hover .wish{opacity:1}
 @media(hover:none){.wish{opacity:1}}
-.card-body{padding:14px 2px 0}
-.card-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
-.card-name{font-size:15px;font-weight:500}
-.card-price{font-size:14px;display:flex;gap:8px;align-items:baseline;white-space:nowrap}
+.card-body{padding:14px 2px 0;min-width:0}
+.card-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;min-width:0}
+.card-name{font-size:15px;font-weight:500;min-width:0;overflow-wrap:anywhere;hyphens:auto}
+.card-price{font-size:14px;display:flex;gap:8px;align-items:baseline;white-space:nowrap;flex-shrink:0}
 .old{color:var(--ink-soft);text-decoration:line-through;font-size:13px}
 .sale-price{color:var(--accent);font-weight:600}
 .swatches{display:flex;gap:6px;margin-top:9px}
@@ -2176,6 +2194,7 @@ a.footer-link{text-decoration:none}
 /* успех: номер заказа */
 .success-order{font-size:14px;color:var(--ink-soft);margin-bottom:8px}
 .success-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+.tg-open{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-bottom:14px}
 
 /* вкладки админки */
 .admin-tabbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:26px;padding-bottom:16px;border-bottom:1px solid var(--line)}
