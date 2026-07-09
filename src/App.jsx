@@ -123,8 +123,12 @@ const tgUsername = (v) => (v || "").trim().replace(/^https?:\/\/t\.me\//i, "").r
 const processImage = (file) => uploadProductImage(file);
 
 /* -------- Галерея: реальные фото ИЛИ плейсхолдеры-силуэты -------- */
+const imgFull = (im) => (typeof im === "string" ? im : im?.full || im?.thumb || "");
+const imgThumb = (im) => (typeof im === "string" ? im : im?.thumb || im?.full || "");
+
 function getGallery(p) {
-  if (p.images && p.images.length) return p.images.map((src, i) => ({ key: "img" + i, label: "Фото " + (i + 1), src }));
+  if (p.images && p.images.length)
+    return p.images.map((im, i) => ({ key: "img" + i, label: "Фото " + (i + 1), src: imgFull(im), thumb: imgThumb(im) }));
   return [
     { key: "front", label: "Спереди", bg: "#eeeae2", mode: "front" },
     { key: "styled", label: "В образе", bg: "#ddd6c8", mode: "styled" },
@@ -183,6 +187,29 @@ function Store() {
   const [lastOrderId, setLastOrderId] = useState(null);
   const [booting, setBooting] = useState(true);
   const [fatal, setFatal] = useState("");
+  const [fade, setFade] = useState(false);
+
+  // гостевая корзина: не теряется при закрытии вкладки
+  useEffect(() => {
+    if (user) return;
+    try {
+      const raw = localStorage.getItem("arsene_guest_cart");
+      if (raw) setCart(JSON.parse(raw));
+      const f = localStorage.getItem("arsene_guest_favs");
+      if (f) setFavorites(JSON.parse(f));
+    } catch (e) { /* пусто */ }
+    // eslint-disable-next-line
+  }, []);
+  useEffect(() => {
+    if (user) return;
+    try {
+      localStorage.setItem("arsene_guest_cart", JSON.stringify(cart));
+      localStorage.setItem("arsene_guest_favs", JSON.stringify(favorites));
+    } catch (e) { /* переполнено */ }
+  }, [cart, favorites, user]);
+
+  // снимаем класс анимации после перехода
+  useEffect(() => { if (!fade) return; const t = setTimeout(() => setFade(false), 260); return () => clearTimeout(t); }, [fade]);
 
   /* --- Первичная загрузка: товары + настройки (публичные данные) --- */
   useEffect(() => {
@@ -225,6 +252,17 @@ function Store() {
     // eslint-disable-next-line
   }, [cart, favorites]);
 
+  // заголовок вкладки: помогает и людям, и поиску
+  useEffect(() => {
+    if (!settings) return;
+    const brand = settings.brand || BRAND;
+    const p = view === "product" && selectedId ? byId(selectedId) : null;
+    const titles = { catalog: `${brand} — магазин одежды`, cart: `Корзина — ${brand}`, checkout: `Оформление заказа — ${brand}`,
+      favorites: `Избранное — ${brand}`, info: `О магазине — ${brand}`, account: `Мой аккаунт — ${brand}`,
+      orders: `Мои заказы — ${brand}`, admin: `Админ-панель — ${brand}`, success: `Заказ оформлен — ${brand}` };
+    document.title = p ? `${p.name} — ${brand}` : (titles[view] || brand);
+  }, [view, selectedId, settings, products]);
+
   // блокируем прокрутку под меню и закрываем его по Esc
   useEffect(() => {
     document.body.style.overflow = menuOpen ? "hidden" : "";
@@ -234,9 +272,31 @@ function Store() {
   }, [menuOpen]);
 
   const byId = (id) => (products || []).find((p) => p.id === id);
-  const go = (v) => { setView(v); window.scrollTo({ top: 0 }); };
-  const openProduct = (id) => { setSelectedId(id); go("product"); };
+
+  /* --- Адреса страниц: #/, #/product/12, #/cart … Работает «Назад» и ссылки --- */
+  const go = (v, id) => {
+    const hash = v === "catalog" ? "#/" : v === "product" ? `#/product/${id}` : `#/${v}`;
+    if (window.location.hash !== hash) window.history.pushState(null, "", hash);
+    setView(v); setFade(true); window.scrollTo({ top: 0 });
+  };
+  const openProduct = (id) => { setSelectedId(id); go("product", id); };
   const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("catalog"); };
+
+  // читаем адрес при загрузке и по кнопке «Назад»
+  useEffect(() => {
+    const applyHash = () => {
+      const h = window.location.hash.replace(/^#\/?/, "");
+      const [seg, id] = h.split("/");
+      if (seg === "product" && id) { setSelectedId(Number(id)); setView("product"); }
+      else if (["cart", "checkout", "favorites", "info", "account", "orders", "login", "admin", "success"].includes(seg)) setView(seg);
+      else setView("catalog");
+      setFade(true);
+    };
+    applyHash();
+    window.addEventListener("popstate", applyHash);
+    window.addEventListener("hashchange", applyHash);
+    return () => { window.removeEventListener("popstate", applyHash); window.removeEventListener("hashchange", applyHash); };
+  }, []);
 
   // нельзя заказать больше, чем есть в наличии
   const addToCart = (id, size) => {
@@ -261,21 +321,42 @@ function Store() {
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   const toggleFav = (id) => setFavorites((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
+
+  // похожие: сначала тот же тип, затем та же категория
+  const relatedTo = (p) => {
+    if (!p) return [];
+    const pool = products.filter((x) => x.id !== p.id && x.stock > 0);
+    const sameType = pool.filter((x) => x.type === p.type);
+    const sameCat = pool.filter((x) => x.cat === p.cat && x.type !== p.type);
+    return [...sameType, ...sameCat].slice(0, 4);
+  };
   const openSearch = () => { openCatalog("Всё"); setTimeout(() => document.getElementById("search-input")?.focus(), 40); };
 
   /* --- Заказ: пишем в базу (остатки уменьшит триггер), обновляем список --- */
   const placeOrder = async (order) => {
     try {
+      // сверяем остатки с базой: вещь могли разобрать, пока покупатель заполнял форму
+      const fresh = await fetchProducts();
+      const short = order.items.filter((i) => {
+        const p = fresh.find((x) => x.id === i.id);
+        return !p || p.stock < i.qty;
+      });
+      if (short.length) {
+        setProducts(fresh.map(normalizeProduct));
+        return { ok: false, error: `Не хватает на складе: ${short.map((i) => i.name).join(", ")}. Мы обновили наличие — измените количество.` };
+      }
       await createOrder(order, user?.id);
+      try { localStorage.removeItem("arsene_guest_cart"); } catch (e) { /* ok */ }
       setLastOrderId(order.id);
       setCart([]);
       const [prods, ords] = await Promise.all([fetchProducts(), user ? fetchOrders() : Promise.resolve([])]);
       setProducts(prods.map(normalizeProduct));
       setOrders(ords);
       go("success");
+      return { ok: true };
     } catch (e) {
       console.error(e);
-      alert("Не удалось сохранить заказ: " + (e.message || "ошибка сети"));
+      return { ok: false, error: "Не удалось сохранить заказ: " + (e.message || "ошибка сети") };
     }
   };
   const updateOrderStatus = async (id, status) => {
@@ -317,7 +398,33 @@ function Store() {
   const logout = async () => { await signOut(); setIsAdmin(false); setUser(null); setCart([]); setFavorites([]); setOrders([]); go("catalog"); };
 
   if (booting || !products || !settings) {
-    return <div className="store"><style>{css}</style><div className="boot">Загрузка магазина…</div></div>;
+    return (
+      <div className="store">
+        <style>{css}</style>
+        <div className="announce skel-announce" />
+        <header className="header">
+          <div className="skel skel-nav" />
+          <div className="skel skel-word" />
+          <div className="skel skel-nav" />
+        </header>
+        <section className="hero">
+          <div className="skel skel-line" style={{ width: 140, margin: "0 auto 22px" }} />
+          <div className="skel skel-title" />
+          <div className="skel skel-line" style={{ width: 320, margin: "26px auto 34px" }} />
+        </section>
+        <section className="catalog">
+          <div className="grid">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="card">
+                <div className="skel skel-media" />
+                <div className="skel skel-line" style={{ width: "70%", marginTop: 14 }} />
+                <div className="skel skel-line" style={{ width: "40%", marginTop: 8 }} />
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
   }
   if (fatal) {
     return <div className="store"><style>{css}</style><div className="boot boot-error">{fatal}</div></div>;
@@ -347,6 +454,7 @@ function Store() {
         </div>
       )}
 
+      <main className={fade ? "page page-in" : "page"}>
       {view === "catalog" && (
         <CatalogView settings={settings} products={products} activeCat={activeCat} setActiveCat={setActiveCat}
           onOpen={openProduct} onInfo={() => go("info")} query={query} setQuery={setQuery} favorites={favorites} onFav={toggleFav} />
@@ -354,6 +462,7 @@ function Store() {
       {view === "product" && selectedId && byId(selectedId) && (
         <ProductView key={selectedId} product={byId(selectedId)} onBack={() => openCatalog()} onAdd={addToCart}
           inCart={cart.filter((i) => i.id === selectedId).reduce((s, i) => s + i.qty, 0)}
+          related={relatedTo(byId(selectedId))} onOpen={openProduct} favorites={favorites} onFavId={toggleFav}
           onGoCart={() => go("cart")} isFav={favorites.includes(selectedId)} onFav={() => toggleFav(selectedId)} />
       )}
       {view === "favorites" && (
@@ -386,6 +495,8 @@ function Store() {
               onLogout={logout} onPreview={openProduct} onSaveSettings={updateSettings} onAddType={addType} onOrderStatus={updateOrderStatus} />
           : <AuthView brand={settings.brand} onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />
       )}
+
+      </main>
 
       <Footer settings={settings} onNav={openCatalog} onInfo={() => go("info")} onAdmin={() => go(accountTarget)} isAdmin={isAdmin} user={user} />
     </div>
@@ -430,6 +541,7 @@ const EMPTY_FILTERS = { types: [], brands: [], sizes: [], colors: [], fabrics: [
 function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onInfo, query, setQuery, favorites, onFav }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [open, setOpen] = useState(false);
+  const [sort, setSort] = useState("new");
 
   // при смене раздела фильтры сбрасываем: у обуви и одежды разные размеры/бренды
   useEffect(() => { setFilters(EMPTY_FILTERS); }, [activeCat]);
@@ -463,6 +575,11 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
     if (filters.min && p.price < Number(filters.min)) return false;
     if (filters.max && p.price > Number(filters.max)) return false;
     return true;
+  }).sort((a, b) => {
+    if (sort === "cheap") return a.price - b.price;
+    if (sort === "expensive") return b.price - a.price;
+    if (sort === "discount") return discountPct(b) - discountPct(a);
+    return b.id - a.id; // новинки: свежие сверху
   });
 
   return (
@@ -488,6 +605,12 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
             <button className={`filter-toggle ${open ? "on" : ""}`} onClick={() => setOpen((o) => !o)}>
               <SlidersHorizontal size={15} /> Фильтры{activeCount > 0 && <span className="fcount">{activeCount}</span>}
             </button>
+            <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Сортировка">
+              <option value="new">Сначала новинки</option>
+              <option value="cheap">Сначала дешевле</option>
+              <option value="expensive">Сначала дороже</option>
+              <option value="discount">Больше скидка</option>
+            </select>
             <div className="filters">
               {CATEGORIES.map((c) => <button key={c} className={`chip ${activeCat === c ? "chip-active" : ""}`} onClick={() => setActiveCat(c)}>{c}</button>)}
             </div>
@@ -564,6 +687,7 @@ function FilterGroup({ title, children }) {
     </div>
   );
 }
+const discountPct = (p) => (p.oldPrice > 0 ? Math.round((1 - p.price / p.oldPrice) * 100) : 0);
 function plural(n, one, few, many) {
   const m10 = n % 10, m100 = n % 100;
   if (m10 === 1 && m100 !== 11) return one;
@@ -598,7 +722,7 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
 }
 
 /* --------------------------- Страница товара --------------------------- */
-function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0 }) {
+function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0, related = [], onOpen, favorites = [], onFavId }) {
   const images = getGallery(p);
   const [active, setActive] = useState(0);
   const singleSize = p.sizes.length === 1;
@@ -692,6 +816,17 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
           </div>
         </>
       )}
+
+      {related.length > 0 && (
+        <div className="related">
+          <h2 className="section-title">Похожие товары</h2>
+          <div className="grid">
+            {related.map((r) => (
+              <ProductCard key={r.id} p={r} onOpen={() => onOpen(r.id)} isFav={favorites.includes(r.id)} onFav={() => onFavId(r.id)} />
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -783,6 +918,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
     delivery: "courier", pay: "sbp", comment: "",
   });
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
   const deliveryText = () => {
@@ -805,12 +941,13 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
       `\nПокупатель: ${f.name}\nТелефон: ${f.phone}`;
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!isValidName(f.name)) return setErr("Введите настоящие имя и фамилию (например, Владимир Андреев)");
     if (!isValidPhone(f.phone)) return setErr("Введите телефон полностью: +7 900 000-00-00");
     if (f.delivery === "courier" && !f.address.trim()) return setErr("Укажите адрес доставки");
     if (f.delivery === "cdek" && !f.pvz.trim()) return setErr("Укажите пункт выдачи СДЭК");
     setErr("");
+    setBusy(true);
 
     const ref = "AR-" + Date.now().toString().slice(-6);
     const order = {
@@ -822,15 +959,19 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
       subtotal, shipping, total,
     };
 
-    // формируем сообщение и открываем чат с менеджером в Telegram
+    // окно открываем сразу, иначе браузер посчитает это всплывающим окном и заблокирует
     const msg = buildMessage(ref);
     const uname = tgUsername(settings.managerTg);
     const url = uname
       ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}`
       : `https://t.me/share/url?url=${encodeURIComponent(settings.telegram || "https://t.me")}&text=${encodeURIComponent(msg)}`;
-    window.open(url, "_blank", "noopener");
+    const tab = window.open("", "_blank", "noopener");
 
-    onPlace(order);
+    const res = await onPlace(order);
+    setBusy(false);
+
+    if (res && !res.ok) { if (tab) tab.close(); setErr(res.error); return; }
+    if (tab) tab.location = url; else window.open(url, "_blank", "noopener");
   };
 
   return (
@@ -901,7 +1042,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace }) {
           <div className="sum-row"><span>Доставка</span><span>{shipping === 0 ? "Бесплатно" : money(shipping)}</span></div>
           <div className="sum-row total"><span>К оплате</span><span className="total-sum">{money(total)}</span></div>
           {err && <div className="login-err">{err}</div>}
-          <button className="btn-primary btn-block" onClick={submit}><Send size={16} /> Оформить и написать менеджеру</button>
+          <button className="btn-primary btn-block" onClick={submit} disabled={busy}><Send size={16} /> {busy ? "Оформляем…" : "Оформить и написать менеджеру"}</button>
           <p className="summary-note">По кнопке откроется Telegram с готовым сообщением о заказе.</p>
         </aside>
       </div>
@@ -1533,7 +1674,7 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
             <div className="img-grid">
               {f.images.map((src, i) => (
                 <div className={`img-cell ${i === 0 ? "is-main" : ""}`} key={i}>
-                  <img src={src} alt={`Фото ${i + 1}`} />
+                  <img src={imgThumb(src)} alt={`Фото ${i + 1}`} loading="lazy" />
                   {i === 0 && <span className="main-flag">Главное</span>}
                   <div className="img-overlay">
                     {i !== 0 && <button onClick={() => makeMain(i)} title="Сделать главным"><Star size={14} /></button>}
@@ -1588,8 +1729,20 @@ function Footer({ settings, onNav, onInfo, onAdmin, isAdmin, user }) {
 }
 
 /* ----------------------- Медиа: фото или силуэт ----------------------- */
-function Media({ p, img, large }) {
-  if (img && img.src) return <img className={`garment${large ? " garment-contain" : ""}`} src={img.src} alt={p.name} loading="lazy" />;
+function Media({ p, img, large, eager }) {
+  if (img && img.src) {
+    return (
+      <img
+        className={`garment${large ? " garment-contain" : ""}`}
+        src={large ? img.src : img.thumb || img.src}
+        alt={p.name}
+        width={large ? 900 : 400}
+        height={large ? 900 : 400}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+      />
+    );
+  }
   return <GarmentImage p={p} img={img} large={large} />;
 }
 
@@ -1641,7 +1794,7 @@ const css = `
 .store *{box-sizing:border-box;margin:0;padding:0}
 .store button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 .garment{width:100%;height:100%;display:block;object-fit:cover}
-.garment-contain{object-fit:contain;background:var(--card)}
+.garment-contain{object-fit:contain;background:#fff}
 .boot{min-height:60vh;display:grid;place-items:center;color:var(--ink-soft);font-size:15px;text-align:center;padding:40px 24px;line-height:1.6}
 .boot-error{color:var(--accent);max-width:560px;margin:0 auto}
 .muted-block{color:var(--ink-soft);padding:30px 0}
@@ -1695,7 +1848,7 @@ const css = `
 @media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr);gap:20px 14px}}
 @media(max-width:420px){.grid{grid-template-columns:1fr}}
 .card{display:flex;flex-direction:column;cursor:pointer}
-.card-media{position:relative;aspect-ratio:1/1;border-radius:3px;overflow:hidden;background:var(--card)}
+.card-media{position:relative;aspect-ratio:1/1;border-radius:3px;overflow:hidden;background:#fff}
 .badge{position:absolute;top:12px;left:12px;z-index:2;background:var(--paper);color:var(--ink);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:2px}
 .badge-sale{background:var(--accent);color:#fff}
 .wish{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:50%;background:rgba(250,249,246,.85);display:grid;place-items:center;color:var(--ink);opacity:0;transition:opacity .25s}
@@ -1716,7 +1869,7 @@ const css = `
 .back-link:hover{color:var(--ink)}
 .product-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:56px;align-items:start}
 @media(max-width:860px){.product-grid{grid-template-columns:1fr;gap:32px}}
-.main-img{aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:var(--card)}
+.main-img{aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff}
 .thumbs{display:flex;gap:10px;margin-top:12px}
 .thumb{flex:1;aspect-ratio:1;border-radius:3px;overflow:hidden;border:1px solid var(--line);opacity:.7;transition:opacity .2s,border-color .2s;padding:0}
 .thumb:hover{opacity:1}.thumb-active{opacity:1;border-color:var(--ink)}
@@ -1746,7 +1899,7 @@ const css = `
 .cart-layout{display:grid;grid-template-columns:1fr 360px;gap:44px;align-items:start}
 @media(max-width:860px){.cart-layout{grid-template-columns:1fr;gap:30px}}
 .cart-row{display:flex;gap:18px;padding:22px 0;border-bottom:1px solid var(--line)}
-.cart-thumb{width:92px;height:92px;border-radius:3px;overflow:hidden;flex-shrink:0;background:var(--card);padding:0}
+.cart-thumb{width:92px;height:92px;border-radius:3px;overflow:hidden;flex-shrink:0;background:#fff;padding:0}
 .cart-main{flex:1;min-width:0}
 .cart-name{font-weight:500;font-size:16px;text-align:left}
 .cart-name:hover{color:var(--accent)}
@@ -1827,7 +1980,7 @@ const css = `
 .admin-actions{display:flex;gap:10px;flex-wrap:wrap}
 .admin-list{display:flex;flex-direction:column}
 .admin-row{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}
-.admin-thumb{width:56px;height:56px;border-radius:3px;overflow:hidden;flex-shrink:0;background:var(--card)}
+.admin-thumb{width:56px;height:56px;border-radius:3px;overflow:hidden;flex-shrink:0;background:#fff}
 .admin-info{flex:1;min-width:0}
 .admin-name{font-weight:500;font-size:15px;display:flex;align-items:center;gap:8px}
 .mini-tag{font-size:10px;letter-spacing:.05em;text-transform:uppercase;background:var(--ink);color:var(--paper);padding:2px 7px;border-radius:2px}
@@ -2095,5 +2248,27 @@ a.footer-link{text-decoration:none}
 .logo-actions{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .logo-btn{cursor:pointer;padding:10px 18px}
 
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+/* скелетоны загрузки */
+.skel{background:linear-gradient(90deg,#e9e5dd 25%,#f2efe9 37%,#e9e5dd 63%);background-size:400% 100%;animation:shimmer 1.4s ease infinite;border-radius:4px}
+.skel-announce{height:34px;background:var(--ink);opacity:.15}
+.skel-nav{height:14px;width:180px}
+.skel-word{height:22px;width:150px;justify-self:center}
+.skel-title{height:96px;max-width:520px;margin:0 auto;border-radius:8px}
+.skel-line{height:13px}
+.skel-media{aspect-ratio:1/1;border-radius:3px}
+@keyframes shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
+
+/* плавная смена страниц */
+.page-in{animation:pagein .26s cubic-bezier(.2,.7,.2,1)}
+@keyframes pagein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* сортировка */
+.sort-select{padding:9px 14px;border:1px solid var(--line);border-radius:100px;background:var(--card);font-family:inherit;font-size:13px;color:var(--ink);cursor:pointer}
+.sort-select:focus{outline:none;border-color:var(--ink)}
+
+/* похожие товары */
+.related{margin-top:70px;padding-top:40px;border-top:1px solid var(--line)}
+.related .section-title{margin-bottom:26px}
+
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
