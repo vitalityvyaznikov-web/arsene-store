@@ -116,6 +116,11 @@ const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s || "");
 const fabricsOf = (material) => (material || "").split(",").map((x) => x.replace(/[\d%]/g, "").trim().toLowerCase()).filter(Boolean);
 const capit = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // извлекаем username из «@name», «name» или «https://t.me/name»
+// телефон/планшет: там всплывающие вкладки после ожидания сети не работают
+const isMobileDevice = () =>
+  /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent) ||
+  (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches);
+
 const tgUsername = (v) => (v || "").trim().replace(/^https?:\/\/t\.me\//i, "").replace(/^@/, "").replace(/\/.*$/, "").trim();
 
 
@@ -960,15 +965,18 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
       subtotal, shipping, total,
     };
 
-    // вкладку открываем сразу по клику, иначе браузер сочтёт её всплывающей и заблокирует.
-    // без "noopener" — иначе window.open вернёт null и вкладкой нельзя будет управлять
     const msg = buildMessage(ref);
     const uname = tgUsername(settings.managerTg);
     const url = uname
       ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}`
       : `https://t.me/share/url?url=${encodeURIComponent(settings.telegram || "https://t.me")}&text=${encodeURIComponent(msg)}`;
+
+    // На телефонах браузер разрывает связь с заранее открытой вкладкой, пока идёт запрос
+    // к базе. Поэтому там сначала сохраняем заказ, а Telegram открываем по обычной ссылке.
     let tab = null;
-    try { tab = window.open("about:blank", "_blank"); if (tab) tab.opener = null; } catch (e) { tab = null; }
+    if (!isMobileDevice()) {
+      try { tab = window.open("about:blank", "_blank"); if (tab) tab.opener = null; } catch (e) { tab = null; }
+    }
 
     const res = await onPlace(order);
     setBusy(false);
@@ -976,7 +984,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
     if (res && !res.ok) { if (tab) tab.close(); setErr(res.error); return; }
 
     if (tab) { tab.location.href = url; return; }
-    // вкладку заблокировал браузер — покажем ссылку на экране «Заказ оформлен»
+    // телефон или заблокированная вкладка — показываем кнопку на экране «Заказ оформлен»
     onTgFallback?.(url);
   };
 
@@ -1065,10 +1073,19 @@ function SuccessView({ brand, orderId, canTrack, tgLink, onOrders, onShop }) {
       <div className="success-icon"><Check size={34} /></div>
       <h1 className="success-title">Заказ оформлен</h1>
       {orderId && <div className="success-order">Номер заказа: <b>{orderId}</b></div>}
-      <p className="success-sub">Спасибо за покупку в {brand}. Заказ отправлен на подтверждение — статус можно отслеживать в личном кабинете.</p>
+      <p className="success-sub">
+        {tgLink
+          ? <>Заказ сохранён. Остался последний шаг — отправьте его менеджеру в Telegram, чтобы подтвердить оплату и доставку.</>
+          : <>Спасибо за покупку в {brand}. Заказ отправлен на подтверждение — статус можно отслеживать в личном кабинете.</>}
+      </p>
       {tgLink && (
-        <a className="btn-primary tg-open" href={tgLink} target="_blank" rel="noreferrer">
-          <Send size={16} /> Отправить заказ менеджеру
+        <a className="tg-cta-big" href={tgLink} target="_blank" rel="noreferrer">
+          <span className="tg-cta-icon"><Send size={20} /></span>
+          <span className="tg-cta-text">
+            <b>Отправить заказ менеджеру</b>
+            <span>Сообщение уже готово — нужно только нажать «Отправить»</span>
+          </span>
+          <ArrowRight size={18} />
         </a>
       )}
       <div className="success-actions">
@@ -2195,6 +2212,12 @@ a.footer-link{text-decoration:none}
 .success-order{font-size:14px;color:var(--ink-soft);margin-bottom:8px}
 .success-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}
 .tg-open{display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-bottom:14px}
+.tg-cta-big{display:flex;align-items:center;gap:14px;max-width:440px;margin:0 auto 24px;padding:16px 20px;border-radius:10px;text-decoration:none;color:#fff;text-align:left;background:linear-gradient(120deg,#2aabee,#229ed9);box-shadow:0 8px 22px rgba(34,158,217,.3);transition:transform .15s,box-shadow .2s}
+.tg-cta-big:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(34,158,217,.38)}
+.tg-cta-icon{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;flex-shrink:0}
+.tg-cta-text{display:flex;flex-direction:column;gap:2px;flex:1}
+.tg-cta-text b{font-size:15px}
+.tg-cta-text span{font-size:12px;opacity:.92;line-height:1.4}
 
 /* вкладки админки */
 .admin-tabbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:26px;padding-bottom:16px;border-bottom:1px solid var(--line)}
