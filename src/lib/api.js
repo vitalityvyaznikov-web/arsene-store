@@ -164,17 +164,30 @@ function translateAuthError(msg = "") {
 }
 
 /* --------------------- ЗАГРУЗКА ФОТО В ХРАНИЛИЩЕ --------------------- */
-/** Принимает File, сжимает до квадрата 900x900 и загружает в Storage. Возвращает публичный URL. */
+/**
+ * Загружает две версии фото: полную 900x900 и миниатюру 400x400.
+ * Возвращает { full, thumb } — каталог грузит лёгкую, карточка товара полную.
+ */
 export async function uploadProductImage(file) {
-  const blob = await squareBlob(file, 900, 0.85);
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const base = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const [fullBlob, thumbBlob] = await Promise.all([
+    squareBlob(file, 900, 0.85),
+    squareBlob(file, 400, 0.8),
+  ]);
+  const [full, thumb] = await Promise.all([
+    putImage(`${base}.jpg`, fullBlob),
+    putImage(`${base}-thumb.jpg`, thumbBlob),
+  ]);
+  return { full, thumb };
+}
+
+async function putImage(path, blob) {
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, {
     contentType: "image/jpeg",
     cacheControl: "31536000",
   });
   if (error) throw error;
-  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 function squareBlob(file, size = 900, quality = 0.85) {
@@ -189,9 +202,9 @@ function squareBlob(file, size = 900, quality = 0.85) {
         canvas.width = size;
         canvas.height = size;
         const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#faf9f6";
+        ctx.fillStyle = "#ffffff"; // белые поля, если фото не квадратное
         ctx.fillRect(0, 0, size, size);
-        const scale = Math.min(size / img.width, size / img.height); // вписываем целиком
+        const scale = Math.min(size / img.width, size / img.height);
         const w = img.width * scale, h = img.height * scale;
         ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Ошибка сжатия"))), "image/jpeg", quality);
