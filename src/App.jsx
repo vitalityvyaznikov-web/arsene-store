@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ShoppingBag, Search, User, Menu, X, Plus, Minus, ArrowRight, ArrowLeft,
   Heart, Check, LogOut, Pencil, Trash2, Upload, Lock, Star,
@@ -24,7 +24,25 @@ const BRAND = "ARSÈNE";
 const ORDER_STATUSES = ["Обработка", "Подтверждён", "Собирается", "В доставке", "Доставлен", "Отменён"];
 const DELIVERY_LABELS = { courier: "Курьер", cdek: "СДЭК", pickup: "Самовывоз" };
 const PAY_LABELS = { sbp: "СБП онлайн", cash: "При получении" };
-const normalizeProduct = (p) => ({ ...p, stock: typeof p.stock === "number" ? p.stock : 0, delivery: p.delivery || "1–3 дня по России" });
+const arr = (v) => (Array.isArray(v) ? v : []);
+const normalizeProduct = (p = {}) => ({
+  ...p,
+  id: p.id,
+  name: p.name || "Без названия",
+  brand: p.brand || "",
+  cat: p.cat || "Женское",
+  type: p.type || "shirt",
+  price: Number(p.price) || 0,
+  oldPrice: Number(p.oldPrice) || 0,
+  material: p.material || "",
+  care: p.care || "",
+  desc: p.desc || "",
+  sizes: arr(p.sizes).length ? arr(p.sizes) : ["Единый"],
+  colors: arr(p.colors).length ? arr(p.colors) : ["#8f8677"],
+  images: arr(p.images),
+  stock: Number.isFinite(Number(p.stock)) ? Number(p.stock) : 0,
+  delivery: p.delivery || "1–3 дня по России",
+});
 
 const DEFAULT_SETTINGS = {
   brand: BRAND,
@@ -145,7 +163,38 @@ function getGallery(p) {
 
 /* ================================================================== */
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("Ошибка интерфейса:", error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ minHeight: "100vh", background: "#f3f1ec", color: "#1a1613", fontFamily: "system-ui, sans-serif", padding: "48px 24px", textAlign: "center" }}>
+          <h1 style={{ fontSize: 24, marginBottom: 12 }}>Что-то пошло не так</h1>
+          <p style={{ color: "#6b655c", maxWidth: 560, margin: "0 auto 18px", lineHeight: 1.6 }}>
+            Страница не смогла отрисоваться. Скопируйте текст ошибки ниже — он подскажет причину.
+          </p>
+          <pre style={{ display: "inline-block", textAlign: "left", background: "#faf9f6", border: "1px solid #e3ddd2", borderRadius: 6, padding: "14px 16px", maxWidth: "100%", overflow: "auto", fontSize: 13, color: "#7c2634" }}>
+            {String(this.state.error?.stack || this.state.error)}
+          </pre>
+          <div style={{ marginTop: 22 }}>
+            <button onClick={() => window.location.reload()} style={{ background: "#1a1613", color: "#f3f1ec", border: "none", padding: "13px 24px", borderRadius: 2, cursor: "pointer", letterSpacing: ".06em", textTransform: "uppercase", fontSize: 13 }}>
+              Перезагрузить
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  return <ErrorBoundary><Store /></ErrorBoundary>;
+}
+
+function Store() {
   const [products, setProducts] = useState(null);
   const [view, setView] = useState("catalog");
   const [selectedId, setSelectedId] = useState(null);
