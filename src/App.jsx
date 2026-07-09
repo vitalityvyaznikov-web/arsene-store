@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   ShoppingBag, Search, User, Menu, X, Plus, Minus, ArrowRight, ArrowLeft,
   Heart, Check, LogOut, Pencil, Trash2, Upload, Lock, Star,
   Phone, Mail, MapPin, Clock, Settings, Send,
-  SlidersHorizontal, Package,
+  SlidersHorizontal, Package, ArrowUpDown,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import {
@@ -116,11 +116,6 @@ const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s || "");
 const fabricsOf = (material) => (material || "").split(",").map((x) => x.replace(/[\d%]/g, "").trim().toLowerCase()).filter(Boolean);
 const capit = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 // извлекаем username из «@name», «name» или «https://t.me/name»
-// телефон/планшет: там всплывающие вкладки после ожидания сети не работают
-const isMobileDevice = () =>
-  /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent) ||
-  (typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches);
-
 const tgUsername = (v) => (v || "").trim().replace(/^https?:\/\/t\.me\//i, "").replace(/^@/, "").replace(/\/.*$/, "").trim();
 
 
@@ -548,6 +543,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [open, setOpen] = useState(false);
   const [sort, setSort] = useState("new");
+  const cycleSort = () => setSort((cur) => SORTS[(SORTS.findIndex((x) => x.v === cur) + 1) % SORTS.length].v);
 
   // при смене раздела фильтры сбрасываем: у обуви и одежды разные размеры/бренды
   useEffect(() => { setFilters(EMPTY_FILTERS); }, [activeCat]);
@@ -611,12 +607,10 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
             <button className={`filter-toggle ${open ? "on" : ""}`} onClick={() => setOpen((o) => !o)}>
               <SlidersHorizontal size={15} /> Фильтры{activeCount > 0 && <span className="fcount">{activeCount}</span>}
             </button>
-            <select className="sort-select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Сортировка">
-              <option value="new">Сначала новинки</option>
-              <option value="cheap">Сначала дешевле</option>
-              <option value="expensive">Сначала дороже</option>
-              <option value="discount">Больше скидка</option>
-            </select>
+            <button className="sort-btn" onClick={cycleSort} title="Нажмите, чтобы сменить сортировку">
+              <ArrowUpDown size={15} />
+              <span>{SORTS.find((x) => x.v === sort)?.l}</span>
+            </button>
             <div className="filters">
               {CATEGORIES.map((c) => <button key={c} className={`chip ${activeCat === c ? "chip-active" : ""}`} onClick={() => setActiveCat(c)}>{c}</button>)}
             </div>
@@ -693,6 +687,12 @@ function FilterGroup({ title, children }) {
     </div>
   );
 }
+const SORTS = [
+  { v: "new", l: "Новинки" },
+  { v: "cheap", l: "Сначала дешевле" },
+  { v: "expensive", l: "Сначала дороже" },
+  { v: "discount", l: "Больше скидка" },
+];
 const discountPct = (p) => (p.oldPrice > 0 ? Math.round((1 - p.price / p.oldPrice) * 100) : 0);
 function plural(n, one, few, many) {
   const m10 = n % 10, m100 = n % 100;
@@ -947,17 +947,38 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
       `\nПокупатель: ${f.name}\nТелефон: ${f.phone}`;
   };
 
-  const submit = async () => {
-    if (!isValidName(f.name)) return setErr("Введите настоящие имя и фамилию (например, Владимир Андреев)");
-    if (!isValidPhone(f.phone)) return setErr("Введите телефон полностью: +7 900 000-00-00");
-    if (f.delivery === "courier" && !f.address.trim()) return setErr("Укажите адрес доставки");
-    if (f.delivery === "cdek" && !f.pvz.trim()) return setErr("Укажите пункт выдачи СДЭК");
-    setErr("");
-    setBusy(true);
+  // ссылка на Telegram считается заранее — тогда клик открывает её мгновенно,
+  // как обычную ссылку, и мобильный браузер её не блокирует
+  const orderRef = useMemo(() => "AR-" + Date.now().toString().slice(-6), []);
+  const tgUrl = useMemo(() => {
+    const msg = buildMessage(orderRef);
+    const uname = tgUsername(settings.managerTg);
+    return uname
+      ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}`
+      : `https://t.me/share/url?url=${encodeURIComponent(settings.telegram || "https://t.me")}&text=${encodeURIComponent(msg)}`;
+    // eslint-disable-next-line
+  }, [f, items, total, shipping, settings, orderRef]);
 
-    const ref = "AR-" + Date.now().toString().slice(-6);
+  const validate = () => {
+    if (!isValidName(f.name)) return "Введите настоящие имя и фамилию (например, Владимир Андреев)";
+    if (!isValidPhone(f.phone)) return "Введите телефон полностью: +7 900 000-00-00";
+    if (f.delivery === "courier" && !f.address.trim()) return "Укажите адрес доставки";
+    if (f.delivery === "cdek" && !f.pvz.trim()) return "Укажите пункт выдачи СДЭК";
+    const short = items.filter((i) => i.qty > (i.p.stock ?? 0));
+    if (short.length) return `Не хватает на складе: ${short.map((i) => i.p.name).join(", ")}`;
+    return "";
+  };
+
+  // Клик по ссылке: если данные неверны — не пускаем. Если верны — браузер открывает
+  // Telegram, а заказ уходит в базу параллельно, не задерживая переход.
+  const handleClick = (e) => {
+    const problem = validate();
+    if (problem) { e.preventDefault(); setErr(problem); return; }
+    if (busy) { e.preventDefault(); return; }
+    setErr(""); setBusy(true);
+
     const order = {
-      id: ref,
+      id: orderRef,
       customer: { name: f.name.trim(), phone: f.phone.trim(), email: user?.email || "" },
       delivery: { method: f.delivery, city: f.city.trim(), address: f.address.trim(), pvz: f.pvz.trim(), comment: f.comment.trim() },
       payment: { method: f.pay, card: "" },
@@ -965,27 +986,13 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
       subtotal, shipping, total,
     };
 
-    const msg = buildMessage(ref);
-    const uname = tgUsername(settings.managerTg);
-    const url = uname
-      ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}`
-      : `https://t.me/share/url?url=${encodeURIComponent(settings.telegram || "https://t.me")}&text=${encodeURIComponent(msg)}`;
+    onTgFallback?.(tgUrl); // запасная ссылка на экране «Заказ оформлен»
 
-    // На телефонах браузер разрывает связь с заранее открытой вкладкой, пока идёт запрос
-    // к базе. Поэтому там сначала сохраняем заказ, а Telegram открываем по обычной ссылке.
-    let tab = null;
-    if (!isMobileDevice()) {
-      try { tab = window.open("about:blank", "_blank"); if (tab) tab.opener = null; } catch (e) { tab = null; }
-    }
-
-    const res = await onPlace(order);
-    setBusy(false);
-
-    if (res && !res.ok) { if (tab) tab.close(); setErr(res.error); return; }
-
-    if (tab) { tab.location.href = url; return; }
-    // телефон или заблокированная вкладка — показываем кнопку на экране «Заказ оформлен»
-    onTgFallback?.(url);
+    // намеренно без await: ссылка должна сработать сразу
+    Promise.resolve(onPlace(order)).then((res) => {
+      setBusy(false);
+      if (res && !res.ok) setErr(res.error);
+    });
   };
 
   return (
@@ -1056,10 +1063,11 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
           <div className="sum-row"><span>Доставка</span><span>{shipping === 0 ? "Бесплатно" : money(shipping)}</span></div>
           <div className="sum-row total"><span>К оплате</span><span className="total-sum">{money(total)}</span></div>
           {err && <div className="login-err">{err}</div>}
-          <button className="btn-primary btn-block" onClick={submit} disabled={busy}>
+          <a className={`btn-primary btn-block checkout-link ${busy ? "is-busy" : ""}`}
+             href={tgUrl} target="_blank" rel="noreferrer" onClick={handleClick}>
             <Send size={16} /> {busy ? "Оформляем…" : "Оформить и написать менеджеру"}
-          </button>
-          <p className="summary-note">По кнопке откроется Telegram с готовым сообщением о заказе.</p>
+          </a>
+          <p className="summary-note">Откроется Telegram с готовым сообщением о заказе.</p>
         </aside>
       </div>
     </section>
@@ -1074,16 +1082,15 @@ function SuccessView({ brand, orderId, canTrack, tgLink, onOrders, onShop }) {
       <h1 className="success-title">Заказ оформлен</h1>
       {orderId && <div className="success-order">Номер заказа: <b>{orderId}</b></div>}
       <p className="success-sub">
-        {tgLink
-          ? <>Заказ сохранён. Остался последний шаг — отправьте его менеджеру в Telegram, чтобы подтвердить оплату и доставку.</>
-          : <>Спасибо за покупку в {brand}. Заказ отправлен на подтверждение — статус можно отслеживать в личном кабинете.</>}
+        Спасибо за покупку в {brand}. В Telegram открылось готовое сообщение — отправьте его менеджеру,
+        чтобы подтвердить оплату и доставку. Статус заказа виден в личном кабинете.
       </p>
       {tgLink && (
         <a className="tg-cta-big" href={tgLink} target="_blank" rel="noreferrer">
           <span className="tg-cta-icon"><Send size={20} /></span>
           <span className="tg-cta-text">
-            <b>Отправить заказ менеджеру</b>
-            <span>Сообщение уже готово — нужно только нажать «Отправить»</span>
+            <b>Telegram не открылся?</b>
+            <span>Нажмите — сообщение о заказе уже готово</span>
           </span>
           <ArrowRight size={18} />
         </a>
@@ -2305,8 +2312,11 @@ a.footer-link{text-decoration:none}
 @keyframes pagein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* сортировка */
-.sort-select{padding:9px 14px;border:1px solid var(--line);border-radius:100px;background:var(--card);font-family:inherit;font-size:13px;color:var(--ink);cursor:pointer}
-.sort-select:focus{outline:none;border-color:var(--ink)}
+.sort-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border:1px solid var(--line);border-radius:100px;background:var(--card);font-size:13px;color:var(--ink);transition:border-color .2s,color .2s;white-space:nowrap}
+.sort-btn:hover{border-color:var(--ink)}
+.sort-btn span{min-width:104px;text-align:left}
+.checkout-link{text-decoration:none}
+.checkout-link.is-busy{opacity:.6;pointer-events:none}
 
 /* похожие товары */
 .related{margin-top:70px;padding-top:40px;border-top:1px solid var(--line)}
