@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#f2efe9"/>
+  <rect x="510" y="96" width="180" height="180" fill="none" stroke="#7c2634" stroke-width="3"/>
+  <rect x="540" y="88" width="120" height="16" fill="#f2efe9"/>
+  <text x="600" y="102" text-anchor="middle" font-family="system-ui,sans-serif" font-size="14" letter-spacing="6" fill="#7c2634">R — V</text>
+  <text x="600" y="238" text-anchor="middle" font-family="Georgia, serif" font-size="118" fill="#7c2634">R</text>
+  <text x="600" y="400" text-anchor="middle" font-family="Georgia, serif" font-size="86" letter-spacing="30" fill="#571c28">ROVELLE</text>
+  <text x="600" y="470" text-anchor="middle" font-family="system-ui, sans-serif" font-size="21" letter-spacing="9" fill="#8a7f72">EST · ARCHIVE · MENSWEAR</text>
+</svg>
