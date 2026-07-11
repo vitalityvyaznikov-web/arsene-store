@@ -438,6 +438,8 @@ function Store() {
   return (
     <div className="store">
       <style>{css}</style>
+      <ScrollProgress />
+      <BackToTop />
       <div className="announce">{settings.announce}</div>
 
       <Header
@@ -513,11 +515,10 @@ function Header({ brand, logo, cartCount, favCount, isAdmin, onLogo, onCart, onN
       <button className="icon-btn only-mobile" aria-label="Меню" onClick={onMenu}><Menu size={20} /></button>
       <nav className="nav only-desktop">
         {SHOP_CATS.map((c) => <button key={c} className="nav-link" onClick={() => onNav(c)}>{c}</button>)}
-        <button className="nav-link nav-sale" onClick={() => onNav("Всё")}>Sale</button>
         {isAdmin && <button className="nav-link nav-admin" onClick={onAccount}>Админ</button>}
       </nav>
-      <button className="wordmark" onClick={onLogo}>
-        {logo ? <img className="brand-logo" src={logo} alt={brand} /> : brand}
+      <button className="wordmark" onClick={onLogo} aria-label={brand}>
+        {logo ? <img className="brand-logo" src={logo} alt={brand} /> : <span className="wm wm-head"><span className="wm-letters-static">ROVELLE</span><span className="wm-line" /></span>}
       </button>
       <div className="header-actions">
         <button className="icon-btn only-desktop" aria-label="Поиск" onClick={onSearch}><Search size={19} /></button>
@@ -555,12 +556,144 @@ function Reveal({ children, delay = 0, className = "" }) {
   return <div ref={ref} className={`rv ${className}`} style={{ transitionDelay: `${delay}ms` }}>{children}</div>;
 }
 
-/* --------- Монограмма R в рамке (по фирменному знаку) --------- */
+/* --------- Полоса прогресса прокрутки --------- */
+function ScrollProgress() {
+  const ref = React.useRef(null);
+  useEffect(() => {
+    const on = () => {
+      const h = document.documentElement;
+      const max = h.scrollHeight - h.clientHeight;
+      if (ref.current) ref.current.style.transform = `scaleX(${max > 0 ? window.scrollY / max : 0})`;
+    };
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    window.addEventListener("resize", on);
+    return () => { window.removeEventListener("scroll", on); window.removeEventListener("resize", on); };
+  }, []);
+  return <div ref={ref} className="scroll-progress" />;
+}
+
+/* --------- Кнопка «наверх» --------- */
+function BackToTop() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const on = () => setShow(window.scrollY > 700);
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
+  }, []);
+  if (!show) return null;
+  return <button className="to-top" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Наверх">↑</button>;
+}
+
+/* --------- Фирменное начертание: ROVELLE + линия --------- */
+function Wordmark({ animate = false }) {
+  return (
+    <span className={`wm ${animate ? "wm-anim" : ""}`}>
+      <span className="wm-letters">
+        {"ROVELLE".split("").map((ch, i) => (
+          <span key={i} style={animate ? { animationDelay: `${140 + i * 70}ms` } : undefined}>{ch}</span>
+        ))}
+      </span>
+      <span className="wm-line" />
+    </span>
+  );
+}
+
+/* --------- Монограмма R в рамке --------- */
 function Monogram({ size = 150 }) {
   return (
     <div className="mono" style={{ width: size, height: size }}>
       <span className="mono-tag">R — V</span>
       <span className="mono-r">R</span>
+    </div>
+  );
+}
+
+/* --------- Первый экран: свет за курсором + параллакс --------- */
+function BrandHero({ settings, onDrop, onInfo }) {
+  const ref = React.useRef(null);
+  const markRef = React.useRef(null);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (markRef.current) markRef.current.style.transform = `translate(-50%, calc(-50% + ${window.scrollY * 0.22}px))`;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const onMove = (e) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
+
+  return (
+    <section className="bhero" ref={ref} onMouseMove={onMove}>
+      <div className="bhero-glow" aria-hidden="true" />
+      <div className="bhero-mark" ref={markRef} aria-hidden="true">R</div>
+      <h1 className="bhero-name"><Wordmark animate /></h1>
+      <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
+      <Reveal delay={850}>
+        <div className="bhero-cta">
+          <button className="btn-primary" onClick={onDrop}>Смотреть дроп 001 <ArrowRight size={15} /></button>
+          <button className="btn-ghost" onClick={onInfo}>Философия</button>
+        </div>
+      </Reveal>
+      <div className="bhero-est">{settings.heroEyebrow}</div>
+      <div className="bhero-scroll" aria-hidden="true"><span /></div>
+    </section>
+  );
+}
+
+/* --------- «Живое» фото вещи: наклон, вторая картинка, блик --------- */
+function PieceMedia({ p, onOpen }) {
+  const gallery = getGallery(p);
+  const alt = gallery[1]?.src ? gallery[1] : null;
+  const ref = React.useRef(null);
+
+  const move = (e) => {
+    const el = ref.current;
+    if (!el || window.matchMedia("(pointer: coarse)").matches) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(900px) rotateX(${(-y * 3.5).toFixed(2)}deg) rotateY(${(x * 3.5).toFixed(2)}deg)`;
+  };
+  const leave = () => { if (ref.current) ref.current.style.transform = ""; };
+
+  return (
+    <button className="piece-media" ref={ref} onMouseMove={move} onMouseLeave={leave} onClick={onOpen} aria-label={p.name}>
+      <Media p={p} img={gallery[0]} large />
+      {alt && <img className="piece-alt" src={alt.src} alt="" loading="lazy" />}
+      <span className="piece-shine" aria-hidden="true" />
+      {p.tag && <span className="piece-tag">{p.tag}</span>}
+    </button>
+  );
+}
+
+/* --------- Дополнительная информация (аккордеон) --------- */
+const FAQ_ITEMS = [
+  ["Доставка", "Курьером по городу, СДЭК по всей России или самовывоз. Обычный срок — 1–3 дня. При заказе от 5 000 ₽ доставка бесплатная."],
+  ["Оплата", "СБП онлайн-переводом или при получении. После оформления открывается чат с менеджером в Telegram — он подтверждает оплату и заказ, обычно в течение часа."],
+  ["Возврат", "14 дней на возврат, если вещь не подошла: без следов носки, с сохранённой комплектацией. Напишите менеджеру — организуем обратную доставку."],
+  ["Как мы отбираем вещи", "Каждая позиция проходит ручной отбор: смотрим швы, фактуру, честность денима и посадку. В дроп попадает малая часть из того, что мы находим."],
+];
+function FAQ() {
+  const [open, setOpen] = useState(0);
+  return (
+    <div className="faq">
+      {FAQ_ITEMS.map(([q, a], i) => (
+        <div key={q} className={`faq-item ${open === i ? "open" : ""}`}>
+          <button className="faq-q" onClick={() => setOpen(open === i ? -1 : i)}>
+            <span>{q}</span>
+            <Plus size={16} className="faq-plus" />
+          </button>
+          <div className="faq-a"><p>{a}</p></div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -579,22 +712,11 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
   const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0;
   const tickerWords = ["Archive", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
+  const shots = products.flatMap((p) => (p.images || []).map((im, i) => ({ src: imgThumb(im), id: `${p.id}-${i}`, pid: p.id, name: p.name })));
 
   return (
     <>
-      {/* ---------- Первый экран ---------- */}
-      <section className="bhero">
-        <Reveal><Monogram size={132} /></Reveal>
-        <Reveal delay={120}><h1 className="bhero-name">ROVELLE</h1></Reveal>
-        <Reveal delay={220}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
-        <Reveal delay={320}>
-          <div className="bhero-cta">
-            <button className="btn-primary" onClick={() => scrollToDrop("Archive")}>Смотреть дроп 001 <ArrowRight size={15} /></button>
-            <button className="btn-ghost" onClick={onInfo}>Философия</button>
-          </div>
-        </Reveal>
-        <div className="bhero-est">{settings.heroEyebrow}</div>
-      </section>
+      <BrandHero settings={settings} onDrop={() => scrollToDrop("Archive")} onInfo={onInfo} />
 
       {/* ---------- Бегущая строка ---------- */}
       <div className="ticker" aria-hidden="true">
@@ -619,6 +741,15 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
           <span className="line-desc">Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.</span>
           <span className="line-go">Скоро <ArrowRight size={14} /></span>
         </button>
+      </section>
+
+      {/* ---------- Цифры бренда ---------- */}
+      <section className="stats">
+        {[["001", "номер дропа"], ["2", "линии бренда"], ["0", "логотипов на груди"], ["100%", "ручной отбор"]].map(([n, l], i) => (
+          <Reveal key={l} delay={i * 90}>
+            <div className="stat"><span className="stat-n">{n}</span><span className="stat-l">{l}</span></div>
+          </Reveal>
+        ))}
       </section>
 
       {/* ---------- Дроп ---------- */}
@@ -659,10 +790,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
             {list.map((p, i) => (
               <Reveal key={p.id} delay={(i % 2) * 80}>
                 <article className={`piece ${i % 2 ? "piece-flip" : ""}`}>
-                  <button className="piece-media" onClick={() => onOpen(p.id)} aria-label={p.name}>
-                    <Media p={p} img={getGallery(p)[0]} large />
-                    {p.tag && <span className="piece-tag">{p.tag}</span>}
-                  </button>
+                  <PieceMedia p={p} onOpen={() => onOpen(p.id)} />
                   <div className="piece-info">
                     <div className="piece-no">{String(i + 1).padStart(2, "0")} <span>/ {String(list.length).padStart(2, "0")}</span></div>
                     <h3 className="piece-name">{p.name}</h3>
@@ -691,6 +819,19 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         )}
       </section>
 
+      {/* ---------- Лента кадров ---------- */}
+      {shots.length > 1 && (
+        <section className="strip" aria-label="Кадры дропа">
+          <div className="strip-track">
+            {shots.map((sh) => (
+              <button key={sh.id} className="strip-shot" onClick={() => onOpen(sh.pid)} title={sh.name}>
+                <img src={sh.src} alt={sh.name} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ---------- Что мы проверяем ---------- */}
       <section className="craft">
         <Reveal><h2 className="craft-title">Дрип — это детали,<br />а не принт</h2></Reveal>
@@ -708,7 +849,12 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
       </section>
 
       {/* ---------- Quiet Luxe — тёмный тизер ---------- */}
-      <section className="luxe">
+      <section className="luxe" onMouseMove={(e) => {
+        const el = e.currentTarget; const r = el.getBoundingClientRect();
+        el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+        el.style.setProperty("--my", `${e.clientY - r.top}px`);
+      }}>
+        <div className="luxe-glow" aria-hidden="true" />
         <Reveal>
           <div className="luxe-inner">
             <div className="luxe-eyebrow">Линия 02 · скоро</div>
@@ -721,6 +867,15 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
             )}
           </div>
         </Reveal>
+      </section>
+
+      {/* ---------- Дополнительная информация ---------- */}
+      <section className="info-block">
+        <Reveal>
+          <div className="drop-eyebrow">Как всё устроено</div>
+          <h2 className="drop-title" style={{ marginBottom: 34 }}>Вопросы и ответы</h2>
+        </Reveal>
+        <Reveal delay={120}><FAQ /></Reveal>
       </section>
 
       {/* ---------- Философия ---------- */}
@@ -2351,9 +2506,35 @@ a.footer-link{text-decoration:none}
 .related .section-title{margin-bottom:26px}
 
 /* ================= ГЛАВНАЯ БРЕНДА ================= */
+html{scroll-behavior:smooth}
+
+/* полоса прогресса */
+.scroll-progress{position:fixed;top:0;left:0;right:0;height:2.5px;background:var(--accent);transform:scaleX(0);transform-origin:left;z-index:90}
+
+/* наверх */
+.to-top{position:fixed;right:22px;bottom:22px;width:46px;height:46px;border-radius:50%;background:var(--ink);color:var(--paper);font-size:18px;z-index:60;box-shadow:0 8px 22px rgba(0,0,0,.22);transition:transform .2s;animation:fade .3s ease}
+.to-top:hover{transform:translateY(-3px)}
+
+/* липкая шапка с размытием */
+.header{position:sticky;top:0;z-index:50;background:rgba(243,241,236,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.nav-link{position:relative}
+.nav-link::after{content:"";position:absolute;left:0;bottom:-4px;width:100%;height:1px;background:var(--accent);transform:scaleX(0);transform-origin:right;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+.nav-link:hover::after{transform:scaleX(1);transform-origin:left}
+
 /* появление при прокрутке */
 .rv{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
 .rv-in{opacity:1;transform:none}
+
+/* фирменное начертание */
+.wm{display:inline-flex;flex-direction:column;align-items:center;gap:.14em}
+.wm-letters,.wm-letters-static{font-family:var(--serif);font-weight:400;letter-spacing:.3em;padding-left:.3em;white-space:nowrap}
+.wm-line{display:block;width:72%;height:1px;background:var(--accent);opacity:.75}
+.wm-head .wm-letters-static{font-size:19px;color:var(--ink)}
+.wm-head .wm-line{height:1px}
+.wm-anim .wm-letters span{display:inline-block;opacity:0;transform:translateY(.5em);animation:wmrise .7s cubic-bezier(.2,.7,.2,1) forwards}
+.wm-anim .wm-line{transform:scaleX(0);animation:wmline .9s cubic-bezier(.2,.7,.2,1) .85s forwards}
+@keyframes wmrise{to{opacity:1;transform:none}}
+@keyframes wmline{to{transform:scaleX(1)}}
 
 /* монограмма */
 .mono{position:relative;margin:0 auto;border:1.5px solid var(--accent);display:grid;place-items:center}
@@ -2361,11 +2542,17 @@ a.footer-link{text-decoration:none}
 .mono-tag{position:absolute;top:-8px;left:14px;background:var(--paper);padding:0 8px;font-size:9px;letter-spacing:.25em;color:var(--accent)}
 
 /* первый экран */
-.bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative}
-.bhero-name{font-family:var(--serif);font-weight:400;font-size:clamp(44px,9vw,96px);letter-spacing:.22em;margin:34px 0 18px;padding-left:.22em}
-.bhero-tag{max-width:520px;color:var(--ink-soft);font-size:16px;line-height:1.7;margin-bottom:34px}
-.bhero-cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
-.bhero-est{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-soft)}
+.bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative;overflow:hidden}
+.bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px circle at var(--mx,50%) var(--my,38%),rgba(124,38,52,.09),transparent 68%);transition:background .1s}
+.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--serif);font-size:min(74vh,620px);line-height:1;color:var(--accent);opacity:.055;pointer-events:none;user-select:none}
+.bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
+.bhero-name .wm-line{margin-top:.1em}
+.bhero-tag{max-width:520px;color:var(--ink-soft);font-size:16px;line-height:1.7;margin-bottom:34px;position:relative}
+.bhero-cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;position:relative}
+.bhero-est{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-soft)}
+.bhero-scroll{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:1px;height:30px;background:var(--line);overflow:hidden}
+.bhero-scroll span{display:block;width:100%;height:12px;background:var(--accent);animation:scrolldot 1.8s ease-in-out infinite}
+@keyframes scrolldot{0%{transform:translateY(-14px)}70%{transform:translateY(32px)}100%{transform:translateY(32px)}}
 
 /* бегущая строка */
 .ticker{overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0;background:var(--card)}
@@ -2376,9 +2563,11 @@ a.footer-link{text-decoration:none}
 .ticker:hover .ticker-track{animation-play-state:paused}
 
 /* две линии */
-.lines{display:flex;min-height:420px}
+.lines{display:flex;min-height:430px}
 .line-panel{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;text-align:left;gap:12px;padding:44px 40px;transition:flex .45s cubic-bezier(.2,.7,.2,1),background .3s;cursor:pointer;position:relative;overflow:hidden}
-.line-panel:hover{flex:1.5}
+.line-panel::before{content:"R";position:absolute;right:-30px;top:-40px;font-family:var(--serif);font-size:280px;line-height:1;opacity:.05;transition:opacity .4s,transform .6s}
+.line-panel:hover{flex:1.55}
+.line-panel:hover::before{opacity:.1;transform:rotate(6deg)}
 .line-archive{background:var(--card);border-right:1px solid var(--line)}
 .line-luxe{background:#191512;color:#efe9df}
 .line-no{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent)}
@@ -2387,7 +2576,14 @@ a.footer-link{text-decoration:none}
 .line-desc{font-size:14px;line-height:1.65;color:var(--ink-soft);max-width:420px}
 .line-luxe .line-desc{color:#b3aa99}
 .line-go{display:inline-flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-top:8px;border-bottom:1px solid currentColor;padding-bottom:3px}
-@media(max-width:820px){.lines{flex-direction:column}.line-archive{border-right:none;border-bottom:1px solid var(--line)}.line-panel{padding:36px 24px;min-height:260px}}
+@media(max-width:820px){.lines{flex-direction:column}.line-archive{border-right:none;border-bottom:1px solid var(--line)}.line-panel{padding:36px 24px;min-height:250px}}
+
+/* цифры */
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));max-width:1120px;margin:0 auto;padding:64px 32px 6px;gap:18px}
+@media(max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr));padding:48px 20px 0}}
+.stat{text-align:center;padding:18px 8px;border-top:1px solid var(--line)}
+.stat-n{display:block;font-family:var(--serif);font-size:clamp(30px,4vw,44px);color:var(--accent);line-height:1.1;margin-bottom:6px}
+.stat-l{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
 
 /* дроп */
 .drop{max-width:1120px;margin:0 auto;padding:90px 32px 40px}
@@ -2404,15 +2600,20 @@ a.footer-link{text-decoration:none}
 .drop-empty{color:var(--ink-soft);text-align:center;padding:60px 0}
 
 /* вещь дропа */
-.drop-list{display:flex;flex-direction:column;gap:80px}
+.drop-list{display:flex;flex-direction:column;gap:88px}
 .piece{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
 .piece-flip{direction:rtl}
 .piece-flip>*{direction:ltr}
 @media(max-width:820px){.piece,.piece-flip{grid-template-columns:1fr;gap:22px;direction:ltr}}
-.piece-media{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff;cursor:pointer;display:block;width:100%}
+.piece-media{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff;cursor:pointer;display:block;width:100%;transition:transform .35s ease,box-shadow .35s ease;will-change:transform}
+.piece-media:hover{box-shadow:0 24px 60px rgba(26,22,19,.16)}
 .piece-media .garment{transition:transform .8s cubic-bezier(.2,.7,.2,1)}
-.piece-media:hover .garment{transform:scale(1.045)}
-.piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px}
+.piece-media:hover .garment{transform:scale(1.05)}
+.piece-alt{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;opacity:0;transition:opacity .45s ease}
+.piece-media:hover .piece-alt{opacity:1}
+.piece-shine{position:absolute;top:0;bottom:0;left:-70%;width:45%;background:linear-gradient(78deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-12deg);transition:none;pointer-events:none}
+.piece-media:hover .piece-shine{left:130%;transition:left .8s ease}
+.piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px;z-index:2}
 .piece-no{font-family:var(--serif);font-size:44px;color:var(--accent);line-height:1;margin-bottom:14px}
 .piece-no span{font-size:16px;color:var(--ink-soft)}
 .piece-name{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3.2vw,34px);line-height:1.15;margin-bottom:8px}
@@ -2426,19 +2627,29 @@ a.footer-link{text-decoration:none}
 .piece-low{margin-top:12px;font-size:12px;color:#8a5a1a}
 .piece-out{margin-top:12px;font-size:12px;color:var(--accent)}
 
+/* лента кадров */
+.strip{margin:70px 0 0;padding:26px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
+.strip-track{display:flex;gap:14px;overflow-x:auto;padding:0 32px;scrollbar-width:thin;scroll-snap-type:x mandatory}
+.strip-shot{flex:0 0 auto;width:190px;aspect-ratio:1/1;border-radius:3px;overflow:hidden;background:#fff;scroll-snap-align:start;cursor:pointer}
+.strip-shot img{width:100%;height:100%;object-fit:contain;filter:grayscale(.55);transition:filter .4s ease,transform .6s ease;display:block}
+.strip-shot:hover img{filter:none;transform:scale(1.04)}
+@media(max-width:760px){.strip-shot{width:150px}.strip-track{padding:0 20px}}
+
 /* что мы проверяем */
 .craft{max-width:1120px;margin:0 auto;padding:80px 32px}
 .craft-title{font-family:var(--serif);font-weight:400;font-size:clamp(28px,4.4vw,44px);line-height:1.12;margin-bottom:46px}
 .craft-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
 @media(max-width:820px){.craft-grid{grid-template-columns:1fr}}
-.craft-card{border:1px solid var(--line);border-radius:6px;background:var(--card);padding:28px 24px;height:100%}
+.craft-card{border:1px solid var(--line);border-radius:6px;background:var(--card);padding:28px 24px;height:100%;transition:transform .3s ease,box-shadow .3s ease,border-color .3s}
+.craft-card:hover{transform:translateY(-5px);box-shadow:0 16px 38px rgba(26,22,19,.09);border-color:var(--accent)}
 .craft-no{font-family:var(--serif);font-size:15px;color:var(--accent);display:block;margin-bottom:16px}
 .craft-card h3{font-family:var(--serif);font-weight:500;font-size:20px;margin-bottom:10px}
 .craft-card p{font-size:14px;line-height:1.7;color:var(--ink-soft)}
 
 /* quiet luxe тизер */
-.luxe{background:#191512;color:#efe9df;padding:100px 32px}
-.luxe-inner{max-width:640px;margin:0 auto;text-align:center}
+.luxe{background:#191512;color:#efe9df;padding:100px 32px;position:relative;overflow:hidden}
+.luxe-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,50%),rgba(201,154,107,.10),transparent 70%)}
+.luxe-inner{max-width:640px;margin:0 auto;text-align:center;position:relative}
 .luxe-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#c99a6b;margin-bottom:20px}
 .luxe-title{font-family:var(--serif);font-weight:400;font-size:clamp(38px,7vw,68px);letter-spacing:.06em;margin-bottom:22px}
 .luxe-title em{font-style:italic;color:#c99a6b}
@@ -2448,6 +2659,20 @@ a.footer-link{text-decoration:none}
 .luxe-tease{text-align:center;padding:40px 20px 60px;display:flex;flex-direction:column;align-items:center;gap:18px}
 .luxe-tease h3{font-family:var(--serif);font-weight:400;font-size:30px}
 .luxe-tease p{max-width:480px;color:var(--ink-soft);font-size:14.5px;line-height:1.7}
+
+/* доп. информация */
+.info-block{max-width:760px;margin:0 auto;padding:90px 32px 20px}
+@media(max-width:760px){.info-block{padding:60px 20px 10px}}
+.faq{border-top:1px solid var(--line)}
+.faq-item{border-bottom:1px solid var(--line)}
+.faq-q{width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;padding:20px 4px;font-family:var(--serif);font-size:19px;color:var(--ink);text-align:left;transition:color .2s}
+.faq-q:hover{color:var(--accent)}
+.faq-plus{flex-shrink:0;transition:transform .35s cubic-bezier(.2,.7,.2,1);color:var(--accent)}
+.faq-item.open .faq-plus{transform:rotate(45deg)}
+.faq-a{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s cubic-bezier(.2,.7,.2,1)}
+.faq-item.open .faq-a{grid-template-rows:1fr}
+.faq-a p{overflow:hidden;color:var(--ink-soft);font-size:14.5px;line-height:1.7;padding:0 4px}
+.faq-item.open .faq-a p{padding-bottom:22px}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
