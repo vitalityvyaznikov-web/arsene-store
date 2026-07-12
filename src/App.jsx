@@ -452,11 +452,24 @@ function Store() {
 
       {menuOpen && (
         <div className="mobile-menu">
-          <button className="icon-btn menu-close" onClick={() => setMenuOpen(false)} aria-label="Закрыть"><X size={22} /></button>
-          {CATEGORIES.map((c) => <button key={c} className="mobile-link" onClick={() => { openCatalog(c); setMenuOpen(false); }}>{c}</button>)}
-          <button className="mobile-link" onClick={() => { go("favorites"); setMenuOpen(false); }}>Избранное</button>
-          <button className="mobile-link" onClick={() => { go("info"); setMenuOpen(false); }}>О магазине</button>
-          <button className="mobile-link" onClick={() => { go(accountTarget); setMenuOpen(false); }}>{user ? "Мой аккаунт" : isAdmin ? "Админ-панель" : "Вход"}</button>
+          <div className="mm-top">
+            <span className="wm"><span className="wm-letters-static mm-word">ROVELLE</span><span className="wm-line" /></span>
+            <button className="icon-btn menu-close" onClick={() => setMenuOpen(false)} aria-label="Закрыть"><X size={22} /></button>
+          </div>
+          <div className="mm-links">
+            {CATEGORIES.map((c, i) => (
+              <button key={c} className="mobile-link" style={{ animationDelay: `${i * 45}ms` }} onClick={() => { openCatalog(c); setMenuOpen(false); }}>
+                <span>{c === "Всё" ? "Весь дроп" : c}</span><ArrowRight size={18} />
+              </button>
+            ))}
+            <button className="mobile-link" style={{ animationDelay: "180ms" }} onClick={() => { go("favorites"); setMenuOpen(false); }}><span>Избранное</span><Heart size={17} /></button>
+            <button className="mobile-link" style={{ animationDelay: "225ms" }} onClick={() => { go("info"); setMenuOpen(false); }}><span>О бренде</span><ArrowRight size={18} /></button>
+            <button className="mobile-link" style={{ animationDelay: "270ms" }} onClick={() => { go(accountTarget); setMenuOpen(false); }}><span>{user ? "Мой аккаунт" : isAdmin ? "Админ-панель" : "Вход и регистрация"}</span><User size={17} /></button>
+          </div>
+          <div className="mm-foot">
+            {settings.telegram && <a href={settings.telegram} target="_blank" rel="noreferrer" className="mm-social"><Send size={15} /> Telegram</a>}
+            {settings.instagram && <a href={settings.instagram} target="_blank" rel="noreferrer" className="mm-social">Instagram</a>}
+          </div>
         </div>
       )}
 
@@ -491,7 +504,7 @@ function Store() {
       {view === "checkout" && (
         <CheckoutView cart={cart} byId={byId} user={user} settings={settings} onBack={() => go("cart")} onPlace={placeOrder} onTgFallback={setTgFallback} onMeta={setPayMeta} />
       )}
-      {view === "success" && <SuccessView brand={settings.brand || BRAND} orderId={lastOrderId} canTrack={!!user} tgLink={tgFallback} payMeta={payMeta} settings={settings} onOrders={() => go("orders")} onShop={() => { setTgFallback(""); setPayMeta(null); openCatalog("Всё"); }} />}
+      {view === "success" && <SuccessView brand={BRAND} orderId={lastOrderId} canTrack={!!user} tgLink={tgFallback} payMeta={payMeta} settings={settings} onOrders={() => go("orders")} onShop={() => { setTgFallback(""); setPayMeta(null); openCatalog("Всё"); }} />}
       {view === "orders" && (
         user
           ? <OrdersView orders={orders.filter((o) => o.userId === user.id)} onShop={() => openCatalog("Всё")} onBack={() => go("account")} />
@@ -501,14 +514,14 @@ function Store() {
         user
           ? <AccountView user={user} favCount={favorites.length} cartCount={cartCount} ordersCount={orders.filter((o) => o.userId === user.id).length}
               onFavs={() => go("favorites")} onCart={() => go("cart")} onOrders={() => go("orders")} onLogout={logout} onShop={() => openCatalog("Всё")} />
-          : <AuthView brand={settings.brand} onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />
+          : <AuthView brand={BRAND} onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />
       )}
-      {view === "login" && <AuthView brand={settings.brand} onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />}
+      {view === "login" && <AuthView brand={BRAND} onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />}
       {view === "admin" && (
         isAdmin
           ? <AdminView products={products} settings={settings} orders={orders} onAdd={addProduct} onUpdate={updateProduct} onDelete={deleteProduct}
               onLogout={logout} onPreview={openProduct} onSaveSettings={updateSettings} onAddType={addType} onOrderStatus={updateOrderStatus} />
-          : <AuthView brand={settings.brand} onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />
+          : <AuthView brand={BRAND} onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />
       )}
 
       </main>
@@ -622,8 +635,7 @@ function RotatingWord({ words, interval = 2200 }) {
 /* --------- Монограмма R в рамке --------- */
 function Monogram({ size = 150 }) {
   return (
-    <div className="mono" style={{ width: size, height: size }}>
-      <span className="mono-tag">R — V</span>
+    <div className="mono" style={{ width: size, height: size, "--ms": `${size}px` }}>
       <span className="mono-r">R</span>
     </div>
   );
@@ -765,7 +777,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
       {/* ---------- Цифры бренда ---------- */}
       <section className="stats">
-        {[["001", "номер дропа"], ["2", "линии бренда"], ["0", "логотипов на груди"], ["100%", "ручной отбор"]].map(([n, l], i) => (
+        {[["001", "номер дропа"], ["2", "линии бренда"], ["14", "дней на возврат"], ["100%", "ручной отбор"]].map(([n, l], i) => (
           <Reveal key={l} delay={i * 90}>
             <div className="stat"><span className="stat-n">{n}</span><span className="stat-l">{l}</span></div>
           </Reveal>
@@ -1194,7 +1206,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
   const buildMessage = () => {
     const lines = items.map(({ p, ...i }) => `• ${p.name} — размер ${i.size}, ${i.qty} шт — ${money(p.price * i.qty)}`).join("\n");
     const payText = f.pay === "sbp" ? `СБП (${settings.sbpBank}, ${settings.sbpPhone}, ${settings.sbpName})` : "При получении";
-    return `Здравствуйте! Заказ ${orderRef} в ${settings.brand || BRAND}.\n\n${lines}\n\nИтого: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\nДоставка: ${deliveryText()}\nОплата: ${payText}\n` +
+    return `Здравствуйте! Заказ ${orderRef} в ${BRAND}.\n\n${lines}\n\nИтого: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\nДоставка: ${deliveryText()}\nОплата: ${payText}\n` +
       (f.comment ? `Комментарий: ${f.comment}\n` : "") + `\nПокупатель: ${f.name}\nТелефон: ${f.phone}`;
   };
 
@@ -2150,12 +2162,12 @@ const css = `
 .hero-title em{font-style:italic;color:var(--accent)}
 .hero-sub{max-width:440px;margin:26px auto 34px;color:var(--ink-soft);font-size:16px;line-height:1.6}
 
-.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--ink);color:var(--paper);padding:14px 26px;border-radius:2px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;transition:background .2s,transform .1s}
-.btn-primary:hover:not(:disabled){background:var(--accent)}
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--ink);color:var(--paper);padding:14px 26px;border-radius:6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;transition:transform .18s cubic-bezier(.2,.7,.2,1),box-shadow .25s,opacity .2s}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 26px rgba(26,22,19,.22)}
 .btn-primary:active{transform:translateY(1px)}
 .btn-primary:disabled{opacity:.4;cursor:not-allowed}
-.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);padding:13px 20px;border-radius:2px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;transition:border-color .2s}
-.btn-ghost:hover{border-color:var(--ink)}
+.btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);padding:13px 20px;border-radius:6px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;transition:border-color .2s,background .2s}
+.btn-ghost:hover{border-color:var(--ink);background:rgba(26,22,19,.04)}
 .btn-block{width:100%}
 .link-btn{font-size:13px;color:var(--ink-soft);text-decoration:underline;text-underline-offset:2px;margin-top:6px}
 .link-btn:hover{color:var(--ink)}
@@ -2203,8 +2215,8 @@ const css = `
 @media(max-width:860px){.product-grid{grid-template-columns:1fr;gap:32px}}
 .main-img{aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff}
 .thumbs{display:flex;gap:10px;margin-top:12px}
-.thumb{flex:1;aspect-ratio:1;border-radius:3px;overflow:hidden;border:1px solid var(--line);opacity:.7;transition:opacity .2s,border-color .2s;padding:0}
-.thumb:hover{opacity:1}.thumb-active{opacity:1;border-color:var(--ink)}
+.thumb{flex:1;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--line);opacity:.6;transition:opacity .25s,border-color .25s,transform .2s;padding:0}
+.thumb:hover{opacity:1;transform:translateY(-2px)}.thumb-active{opacity:1;border-color:var(--accent)}
 .product-info{padding-top:6px}
 .p-eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
 .p-name{font-family:var(--serif);font-weight:500;font-size:40px;line-height:1.05;letter-spacing:-.01em}
@@ -2215,9 +2227,9 @@ const css = `
 .size-head{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px}
 .size-hint{color:var(--accent);text-transform:none;letter-spacing:0}
 .size-row{display:flex;gap:8px;flex-wrap:wrap}
-.size-chip{min-width:48px;padding:11px 14px;border:1px solid var(--line);border-radius:2px;font-size:14px;transition:all .2s}
+.size-chip{min-width:48px;padding:11px 14px;border:1px solid var(--line);border-radius:8px;font-size:14px;transition:all .2s;background:var(--paper)}
 .size-chip:hover:not(:disabled){border-color:var(--ink)}
-.size-active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.size-active{background:var(--ink);color:var(--paper);border-color:var(--ink);box-shadow:0 6px 16px rgba(26,22,19,.18)}
 .size-chip:disabled{cursor:default;background:var(--card)}
 .add-row{display:flex;gap:10px;margin-bottom:34px}.add-row .btn-primary{flex:1}
 .specs{border-top:1px solid var(--line)}
@@ -2319,7 +2331,7 @@ const css = `
 .admin-meta{color:var(--ink-soft);font-size:13px;margin-top:3px}
 .admin-photos{color:var(--ink-soft);font-size:12px;margin-top:2px;opacity:.8}
 .admin-btns{display:flex;gap:6px}
-.mini-btn{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:2px;color:var(--ink-soft);transition:all .2s}
+.mini-btn{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft);transition:all .2s}
 .mini-btn:hover{border-color:var(--ink);color:var(--ink)}
 .admin-footer{margin-top:28px}
 
@@ -2644,14 +2656,13 @@ html{scroll-behavior:smooth}
 @keyframes wmline{to{transform:scaleX(1)}}
 
 /* монограмма */
-.mono{position:relative;margin:0 auto;border:1.5px solid var(--accent);display:grid;place-items:center}
-.mono-r{font-family:var(--serif);font-weight:400;font-size:56px;color:var(--accent);line-height:1}
-.mono-tag{position:absolute;top:-8px;left:14px;background:var(--paper);padding:0 8px;font-size:9px;letter-spacing:.25em;color:var(--accent)}
+.mono{position:relative;margin:0 auto;border:1.5px solid var(--accent);display:grid;place-items:center;overflow:hidden}
+.mono-r{font-family:var(--serif);font-weight:400;font-size:calc(var(--ms,150px) * .5);color:var(--accent);line-height:1;padding-top:.04em}
 
 /* первый экран */
 .bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative;overflow:hidden}
 .bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px circle at var(--mx,50%) var(--my,38%),rgba(124,38,52,.09),transparent 68%);transition:background .1s}
-.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--serif);font-size:min(74vh,620px);line-height:1;color:var(--accent);opacity:.055;pointer-events:none;user-select:none}
+.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--serif);font-size:clamp(240px,42vw,520px);line-height:1;color:var(--accent);opacity:.05;pointer-events:none;user-select:none;max-width:100%}
 .bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
 .bhero-name .wm-line{margin-top:.1em}
 .bhero-tag{max-width:520px;color:var(--ink-soft);font-size:16px;line-height:1.7;margin-bottom:34px;position:relative}
@@ -2672,9 +2683,7 @@ html{scroll-behavior:smooth}
 /* две линии */
 .lines{display:flex;min-height:430px}
 .line-panel{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;text-align:left;gap:12px;padding:44px 40px;transition:flex .45s cubic-bezier(.2,.7,.2,1),background .3s;cursor:pointer;position:relative;overflow:hidden}
-.line-panel::before{content:"R";position:absolute;right:-30px;top:-40px;font-family:var(--serif);font-size:280px;line-height:1;opacity:.05;transition:opacity .4s,transform .6s}
-.line-panel:hover{flex:1.55}
-.line-panel:hover::before{opacity:.1;transform:rotate(6deg)}
+.line-panel:hover{flex:1.5}
 .line-archive{background:var(--card);border-right:1px solid var(--line)}
 .line-luxe{background:#191512;color:#efe9df}
 .line-no{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent)}
@@ -2835,9 +2844,9 @@ html{scroll-behavior:smooth}
 .ck-hint{font-size:12.5px;color:var(--ink-soft);margin:4px 0 14px}
 .pay-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
 @media(max-width:560px){.pay-cards{grid-template-columns:1fr}}
-.pay-card{border:1px solid var(--line);border-radius:6px;background:var(--paper);padding:14px;display:flex;flex-direction:column;gap:4px;text-align:left;transition:border-color .2s,box-shadow .2s;cursor:pointer}
-.pay-card:hover:not(:disabled){border-color:var(--ink)}
-.pay-card.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.pay-card{border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:15px 16px;display:flex;flex-direction:column;gap:4px;text-align:left;transition:border-color .2s,box-shadow .25s,transform .18s,background .2s;cursor:pointer}
+.pay-card:hover:not(:disabled){border-color:var(--ink);transform:translateY(-2px);box-shadow:0 8px 20px rgba(26,22,19,.08)}
+.pay-card.on{border-color:var(--accent);background:rgba(124,38,52,.05)}
 .pay-card:disabled{cursor:default}
 .pc-t{font-weight:600;font-size:14px}
 .pc-d{font-size:12px;color:var(--ink-soft)}
@@ -2871,6 +2880,89 @@ html{scroll-behavior:smooth}
 .copy-btn:hover{border-color:var(--accent)}
 .copy-btn.ok{background:var(--accent);color:#fff;border-color:var(--accent)}
 .success-sbp{max-width:420px;margin:20px auto 6px;text-align:left}
+
+/* ================== МОБИЛЬНАЯ ВЕРСИЯ ================== */
+@media(max-width:900px){
+  /* меню */
+  .mobile-menu{padding:0;gap:0}
+  .mm-top{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--line)}
+  .mm-word{font-size:20px;color:var(--ink)}
+  .menu-close{position:static}
+  .mm-links{display:flex;flex-direction:column;padding:8px 0}
+  .mobile-link{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 24px;font-family:var(--serif);font-size:24px;color:var(--ink);border-bottom:1px solid var(--line);opacity:0;transform:translateX(-12px);animation:mmin .45s cubic-bezier(.2,.7,.2,1) forwards}
+  .mobile-link svg{color:var(--accent);flex-shrink:0}
+  .mobile-link:active{background:var(--card)}
+  @keyframes mmin{to{opacity:1;transform:none}}
+  .mm-foot{margin-top:auto;display:flex;gap:12px;padding:22px 24px 30px}
+  .mm-social{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:100px;padding:10px 18px;font-size:13px;color:var(--ink);text-decoration:none}
+
+  /* первый экран короче и живее */
+  .bhero{min-height:auto;padding:54px 22px 66px}
+  .bhero-mark{font-size:clamp(200px,68vw,340px);opacity:.06}
+  .bhero-tag{font-size:15px}
+  .bhero-cta{width:100%;flex-direction:column;gap:10px}
+  .bhero-cta .btn-primary,.bhero-cta .btn-ghost{width:100%}
+  .bhero-est{position:static;transform:none;margin-top:34px}
+  .bhero-scroll{display:none}
+
+  /* цифры в 2 колонки крупнее */
+  .stats{gap:0}
+  .stat{border:1px solid var(--line);border-radius:12px;margin:6px}
+
+  /* вещь дропа: фото сверху, всё крупно, кнопка широкая */
+  .drop-list{gap:56px}
+  .piece-no{font-size:34px;margin-bottom:8px}
+  .piece-name{font-size:26px}
+  .piece-desc{font-size:14px}
+  .piece-row{flex-direction:column;align-items:stretch;gap:14px}
+  .piece-actions{width:100%}
+  .piece-actions .btn-primary{flex:1}
+  .piece-price{justify-content:flex-start}
+
+  /* карта манифеста компактнее */
+  .manifesto-card{padding:40px 18px}
+
+  /* лента кадров — подсказка что листается */
+  .strip-track{scroll-snap-type:x mandatory}
+
+  /* заголовки секций ровнее */
+  .drop-head{margin-bottom:32px}
+  .drop-tools{width:100%}
+  .line-tabs{width:100%;overflow-x:auto;justify-content:flex-start}
+  .search-wrap{width:100%}
+  .search-wrap input{width:100%}
+
+  /* товар: галерея и инфо, липкая покупка */
+  .product-grid{gap:22px}
+  .p-name{font-size:28px}
+  .thumbs{gap:8px}
+  .add-row{position:sticky;bottom:12px;z-index:20;background:rgba(243,241,236,.9);backdrop-filter:blur(10px);padding:10px;margin:20px -10px 24px;border-radius:12px;box-shadow:0 8px 24px rgba(26,22,19,.1)}
+  .p-crumb{font-size:12px}
+
+  /* оформление: сводка сверху, поля крупнее для пальца */
+  .checkout-grid{display:flex;flex-direction:column}
+  .summary{order:-1}
+  .field input,.field textarea,.field select{font-size:16px;padding:14px}
+  .pay-cards{grid-template-columns:1fr}
+
+  /* корзина: строки в столбик */
+  .cart-line{gap:12px}
+}
+
+@media(max-width:520px){
+  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ticker-item{font-size:13px}
+  .craft-card{padding:22px 20px}
+  .luxe{padding:70px 22px}
+  .to-top{right:14px;bottom:14px;width:42px;height:42px}
+}
+
+/* аккуратные тач-таргеты */
+@media(hover:none){
+  .piece-media:hover .garment{transform:none}
+  .piece-alt{display:none}
+  .craft-card:hover{transform:none;box-shadow:none}
+}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
