@@ -23,7 +23,7 @@ import {
 const BRAND = "ROVELLE";
 const ORDER_STATUSES = ["Обработка", "Подтверждён", "Собирается", "В доставке", "Доставлен", "Отменён"];
 const DELIVERY_LABELS = { courier: "Курьер", cdek: "СДЭК", pickup: "Самовывоз" };
-const PAY_LABELS = { sbp: "СБП онлайн", cash: "При получении" };
+const PAY_LABELS = { request: "Заявка (свяжемся)", online: "Оплата онлайн", sbp: "СБП онлайн", cash: "При получении" };
 const arr = (v) => (Array.isArray(v) ? v : []);
 const normalizeProduct = (p = {}) => ({
   ...p,
@@ -71,6 +71,7 @@ const DEFAULT_SETTINGS = {
   telegram: "https://t.me/rovelle",
   logo: "",                            // аватарка магазина (ссылка на файл)
   managerTg: "@pinxty",                // @username менеджера для заказов
+  onlinePayEnabled: false,             // включить, когда подключишь эквайринг (ИП/ЮKassa)
   sbpPhone: "+7 911 098 51 28",        // номер для перевода по СБП
   sbpBank: "Т-Банк",
   sbpName: "Роберт В.",
@@ -945,18 +946,35 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 }
 
 function ProductCard({ p, onOpen, isFav, onFav }) {
-  const cover = getGallery(p)[0];
+  const gallery = getGallery(p);
+  const cover = gallery[0];
+  const alt = gallery[1]?.src ? gallery[1] : null;
+  const soldOut = p.stock <= 0;
+  const low = !soldOut && p.stock <= 3;
+
   return (
     <article className="card" onClick={onOpen}>
       <div className="card-media">
-        <Media p={p} img={cover} />
-        {p.tag && <span className={`badge ${p.tag === "Sale" ? "badge-sale" : ""}`}>{p.tag}</span>}
+        <div className="card-imgwrap">
+          <Media p={p} img={cover} />
+          {alt && <img className="card-alt" src={alt.src} alt="" loading="lazy" />}
+        </div>
+        <span className="card-shine" aria-hidden="true" />
+        <div className="card-badges">
+          {p.tag && <span className={`badge ${p.tag === "Sale" ? "badge-sale" : ""}`}>{p.tag}</span>}
+          {low && <span className="badge badge-low">Осталось {p.stock}</span>}
+          {soldOut && <span className="badge badge-out">Распродано</span>}
+        </div>
         <button className={`wish ${isFav ? "wish-on" : ""}`} aria-label="В избранное"
           onClick={(e) => { e.stopPropagation(); onFav(); }}>
           <Heart size={16} fill={isFav ? "currentColor" : "none"} />
         </button>
+        <div className="card-quick" onClick={(e) => { e.stopPropagation(); onOpen(); }}>
+          <span>Смотреть вещь <ArrowRight size={14} /></span>
+        </div>
       </div>
       <div className="card-body">
+        <div className="card-line">{LINE_SHORT[p.cat] || p.cat} · {typeLabel(p.type)}</div>
         <div className="card-top">
           <h3 className="card-name">{p.name}</h3>
           <div className="card-price">
@@ -964,7 +982,10 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
             <span className={p.oldPrice > 0 ? "sale-price" : ""}>{money(p.price)}</span>
           </div>
         </div>
-        <div className="swatches">{(p.colors || []).map((c, i) => <span key={i} className="swatch" style={{ background: c }} />)}</div>
+        <div className="card-foot">
+          <div className="card-sizes">{(p.sizes || []).slice(0, 5).map((s) => <span key={s}>{s}</span>)}</div>
+          <div className="swatches">{(p.colors || []).slice(0, 4).map((c, i) => <span key={i} className="swatch" style={{ background: c }} />)}</div>
+        </div>
       </div>
     </article>
   );
@@ -1132,6 +1153,72 @@ function ProductTabs({ p }) {
   );
 }
 
+/* --------- Кинематографичная история вещи (скролл-анимации) --------- */
+function ProductStory({ p, onZoom }) {
+  const gallery = getGallery(p);
+  const highlights = (p.highlights || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const fabrics = fabricsOf(p.material).map(capit);
+  // «фактурные» кадры — все фото кроме обложки; если фото одно, секция для крупного плана всё равно полезна
+  const details = gallery.length > 1 ? gallery.slice(1) : gallery;
+
+  return (
+    <div className="pstory">
+      {/* широкая цитата-манифест вещи */}
+      {p.desc && (
+        <Reveal className="pstory-quote-wrap">
+          <div className="pstory-quote">
+            <span className="pstory-mark">”</span>
+            <p>{p.desc}</p>
+            <span className="pstory-sign">{LINE_LABELS[p.cat] || p.cat}</span>
+          </div>
+        </Reveal>
+      )}
+
+      {/* чередующиеся полосы: деталь + подпись */}
+      {details.length > 0 && (
+        <div className="pstory-bands">
+          {details.slice(0, 3).map((img, i) => {
+            const cap = highlights[i];
+            return (
+              <Reveal key={img.key} className="pstory-band-wrap">
+                <div className={`pstory-band ${i % 2 ? "flip" : ""}`}>
+                  <button className="pstory-media" onClick={() => onZoom(gallery.indexOf(img))} aria-label="Открыть на весь экран">
+                    <img src={img.src} alt={p.name} loading="lazy" />
+                    <span className="pstory-zoom"><Search size={16} /></span>
+                  </button>
+                  <div className="pstory-text">
+                    <span className="pstory-no">{String(i + 1).padStart(2, "0")}</span>
+                    <h3>{cap || ["Детали, которые видно вблизи", "Фактура и материал", "Посадка и силуэт"][i] || "Крупный план"}</h3>
+                    <p>{i === 0 && fabrics.length ? `Состав: ${fabrics.join(", ")}. ` : ""}{cap ? "" : "Наведите на фото для увеличения — рассмотрите вещь так, будто держите её в руках."}</p>
+                  </div>
+                </div>
+              </Reveal>
+            );
+          })}
+        </div>
+      )}
+
+      {/* лента фактуры: макро-кадры в ряд */}
+      {gallery.length > 1 && (
+        <Reveal className="texture-wrap">
+          <div className="drop-eyebrow">Фактура</div>
+          <h2 className="drop-title" style={{ marginBottom: 22 }}>Крупным планом</h2>
+          <div className="texture-strip">
+            {gallery.map((img, i) => (
+              <button key={img.key} className="texture-shot" onClick={() => onZoom(i)}>
+                <img src={img.thumb || img.src} alt={p.name} loading="lazy" />
+                <span className="texture-zoom"><Search size={15} /></span>
+              </button>
+            ))}
+          </div>
+        </Reveal>
+      )}
+    </div>
+  );
+}
+
+/* --------- Кинематографичная история вещи конец --------- */
+
 function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0, related = [], onOpen, favorites = [], onFavId, pieceIndex = 0, pieceTotal = 1, onPrev, onNext }) {
   const images = getGallery(p);
   const [active, setActive] = useState(0);
@@ -1252,6 +1339,8 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
         </>
       )}
 
+      <ProductStory p={p} onZoom={(i) => { setActive(i); setLightbox(true); }} />
+
       {related.length > 0 && (
         <div className="related">
           <div className="drop-eyebrow">Дроп 001</div>
@@ -1358,7 +1447,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
   const [f, setF] = useState({
     name: user?.name || "", phone: user?.phone || "", city: "", address: "", pvz: "",
-    delivery: "courier", pay: "sbp", comment: "",
+    delivery: "courier", mode: "request", comment: "",
   });
   const shipping = f.delivery === "pickup" ? 0 : subtotal >= 5000 ? 0 : 390;
   const total = subtotal + shipping;
@@ -1376,8 +1465,8 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
 
   const buildMessage = () => {
     const lines = items.map(({ p, ...i }) => `• ${p.name} — размер ${i.size}, ${i.qty} шт — ${money(p.price * i.qty)}`).join("\n");
-    const payText = f.pay === "sbp" ? `СБП (${settings.sbpBank}, ${settings.sbpPhone}, ${settings.sbpName})` : "При получении";
-    return `Здравствуйте! Заказ ${orderRef} в ${BRAND}.\n\n${lines}\n\nИтого: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\nДоставка: ${deliveryText()}\nОплата: ${payText}\n` +
+    const payText = f.mode === "online" ? "Онлайн-оплата на сайте" : "Заявка — требуется подтверждение";
+    return `Здравствуйте! Заказ ${orderRef} в ${BRAND}.\n\n${lines}\n\nИтого: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\nДоставка: ${deliveryText()}\nОформление: ${payText}\n` +
       (f.comment ? `Комментарий: ${f.comment}\n` : "") + `\nПокупатель: ${f.name}\nТелефон: ${f.phone}`;
   };
 
@@ -1400,7 +1489,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
       id: orderRef,
       customer: { name: f.name.trim(), phone: f.phone.trim(), email: user?.email || "" },
       delivery: { method: f.delivery, city: f.city.trim(), address: f.address.trim(), pvz: f.pvz.trim(), comment: f.comment.trim() },
-      payment: { method: f.pay, card: "" },
+      payment: { method: f.mode, card: "" },
       items: items.map(({ p, ...i }) => ({ id: p.id, name: p.name, brand: p.brand || "", size: i.size, qty: i.qty, price: p.price })),
       subtotal, shipping, total,
     };
@@ -1409,7 +1498,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
     const msg = buildMessage();
     const url = uname ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}` : "";
     onTgFallback?.(url);
-    onMeta?.({ pay: f.pay, total });
+    onMeta?.({ mode: f.mode, total });
 
     const res = await onPlace(order);
     setBusy(false);
@@ -1463,26 +1552,22 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
           </div>
 
           <div className="ck-block">
-            <h3 className="ck-title">{num("03")} Оплата</h3>
-            <div className="pay-cards">
-              <button className={`pay-card ${f.pay === "sbp" ? "on" : ""}`} onClick={() => set("pay", "sbp")}>
-                <span className="pc-t">СБП</span><span className="pc-d">перевод после подтверждения</span>
+            <h3 className="ck-title">{num("03")} Как оформить</h3>
+            <div className="mode-cards">
+              <button className={`mode-card ${f.mode === "request" ? "on" : ""}`} onClick={() => set("mode", "request")}>
+                <span className="mode-ic"><Send size={18} /></span>
+                <span className="mode-t">Оставить заявку</span>
+                <span className="mode-d">Мы свяжемся с вами, подтвердим наличие и детали, поможем с оплатой и доставкой.</span>
+                <span className="mode-badge">Ничего платить сейчас не нужно</span>
               </button>
-              <button className={`pay-card ${f.pay === "cash" ? "on" : ""}`} onClick={() => set("pay", "cash")}>
-                <span className="pc-t">При получении</span><span className="pc-d">наличными или переводом</span>
-              </button>
-              <button className="pay-card pay-soon" disabled>
-                <span className="pc-t">Картой онлайн</span><span className="pc-d">скоро</span>
+              <button className={`mode-card ${f.mode === "online" ? "on" : ""} ${!settings.onlinePayEnabled ? "mode-soon" : ""}`}
+                onClick={() => settings.onlinePayEnabled && set("mode", "online")} disabled={!settings.onlinePayEnabled}>
+                <span className="mode-ic"><Check size={18} /></span>
+                <span className="mode-t">Оплатить онлайн</span>
+                <span className="mode-d">Мгновенное оформление с оплатой картой на сайте. Заказ уходит в работу сразу.</span>
+                <span className="mode-badge">{settings.onlinePayEnabled ? "Быстро и без звонков" : "Скоро"}</span>
               </button>
             </div>
-            {f.pay === "sbp" && (
-              <div className="sbp-block">
-                <div className="sbp-row"><span>Банк</span><b>{settings.sbpBank}</b></div>
-                <div className="sbp-row"><span>Номер</span><b>{settings.sbpPhone}</b></div>
-                <div className="sbp-row"><span>Получатель</span><b>{settings.sbpName}</b></div>
-                <p className="sbp-note">Реквизиты продублируются после оформления. Переводите после того, как менеджер подтвердит наличие.</p>
-              </div>
-            )}
           </div>
         </div>
 
@@ -1502,12 +1587,16 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
           </div>
           <div className="sum-row"><span>Товары</span><span>{money(subtotal)}</span></div>
           <div className="sum-row"><span>Доставка</span><span>{shipping === 0 ? "Бесплатно" : money(shipping)}</span></div>
-          <div className="sum-row total"><span>К оплате</span><span className="total-sum">{money(total)}</span></div>
+          <div className="sum-row total"><span>{f.mode === "online" ? "К оплате" : "Сумма"}</span><span className="total-sum">{money(total)}</span></div>
           {err && <div className="login-err">{err}</div>}
           <button className="btn-primary btn-block" onClick={submit} disabled={busy}>
-            {busy ? "Оформляем…" : "Оформить заказ"}
+            {busy ? "Оформляем…" : f.mode === "online" ? <>Перейти к оплате {money(total)}</> : "Оставить заявку"}
           </button>
-          <p className="summary-note">После оформления мы свяжемся с вами для подтверждения заказа.</p>
+          <p className="summary-note">
+            {f.mode === "online"
+              ? "Оплата картой на защищённой странице. Заказ уходит в работу сразу после оплаты."
+              : "Это заявка — платить сейчас не нужно. Мы свяжемся с вами, чтобы подтвердить заказ."}
+          </p>
           <div className="p-promise ck-promise">
             <span>Ручной отбор</span><i>·</i><span>Возврат 14 дней</span><i>·</i><span>Без логомании</span>
           </div>
@@ -1518,23 +1607,16 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
 }
 
 /* --------------------------- Заказ принят --------------------------- */
-function CopyBtn({ text }) {
-  const [ok, setOk] = useState(false);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1600); }
-    catch (e) { /* без буфера — не страшно */ }
-  };
-  return <button className={`copy-btn ${ok ? "ok" : ""}`} onClick={copy}>{ok ? "Скопировано" : "Копировать"}</button>;
-}
-
 function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOrders, onShop }) {
-  const sbp = payMeta?.pay === "sbp";
-  const steps = ["Заказ принят", "Подтверждение", sbp ? "Оплата по СБП" : "Оплата", "Отправка"];
+  const online = payMeta?.mode === "online";
+  const steps = online
+    ? ["Заказ принят", "Оплата получена", "Сборка", "Отправка"]
+    : ["Заявка принята", "Мы свяжемся", "Оплата и сборка", "Отправка"];
   return (
     <section className="success">
       <div className="success-icon"><Check size={34} /></div>
-      <h1 className="success-title">Заказ принят</h1>
-      {orderId && <div className="success-order">Номер заказа: <b>{orderId}</b></div>}
+      <h1 className="success-title">{online ? "Заказ оформлен" : "Заявка принята"}</h1>
+      {orderId && <div className="success-order">Номер: <b>{orderId}</b></div>}
 
       <div className="order-steps" aria-label="Статус заказа">
         {steps.map((t, i) => (
@@ -1547,20 +1629,12 @@ function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOr
       </div>
 
       <p className="success-sub">
-        Спасибо за заказ в {brand}. <b>Мы свяжемся с вами для подтверждения</b> — обычно в течение часа,
-        держите телефон под рукой.{sbp ? " После подтверждения переведите оплату по СБП:" : ""}
+        {online
+          ? <>Спасибо за заказ в {brand}. Оплата получена, заказ уже в работе — мы напишем, когда он отправится.</>
+          : <>Спасибо за заявку в {brand}. <b>Мы свяжемся с вами</b> — обычно в течение часа, — подтвердим наличие, поможем с оплатой и доставкой. Держите телефон под рукой.</>}
       </p>
 
-      {sbp && settings && (
-        <div className="sbp-block success-sbp">
-          <div className="sbp-row"><span>Банк</span><b>{settings.sbpBank}</b></div>
-          <div className="sbp-row"><span>Номер</span><span className="sbp-copy"><b>{settings.sbpPhone}</b><CopyBtn text={settings.sbpPhone} /></span></div>
-          <div className="sbp-row"><span>Получатель</span><b>{settings.sbpName}</b></div>
-          {payMeta?.total ? <div className="sbp-row"><span>Сумма</span><span className="sbp-copy"><b>{money(payMeta.total)}</b><CopyBtn text={String(payMeta.total)} /></span></div> : null}
-        </div>
-      )}
-
-      {tgLink && (
+      {tgLink && !online && (
         <a className="tg-cta-big" href={tgLink} target="_blank" rel="noreferrer">
           <span className="tg-cta-icon"><Send size={20} /></span>
           <span className="tg-cta-text">
@@ -1984,7 +2058,11 @@ function SettingsForm({ settings, onSave, onCancel }) {
         </div>
 
         <div className="form-block">
-          <h3 className="block-title">Заказы и оплата (СБП)</h3>
+          <h3 className="block-title">Заказы и оплата</h3>
+          <label className="toggle-row">
+            <input type="checkbox" checked={!!f.onlinePayEnabled} onChange={(e) => set("onlinePayEnabled", e.target.checked)} />
+            <span><b>Онлайн-оплата картой на сайте</b><i>Включайте, когда подключите эквайринг (нужно ИП/ЮKassa). Пока выключено, покупатели оставляют заявку.</i></span>
+          </label>
           <Field label="Telegram менеджера для заказов (@username)">
             <input value={f.managerTg} onChange={(e) => set("managerTg", e.target.value)} placeholder="@arsene_manager или https://t.me/arsene_manager" />
           </Field>
@@ -2368,7 +2446,7 @@ const css = `
 .chip{padding:8px 16px;border:1px solid var(--line);border-radius:100px;font-size:13px;color:var(--ink-soft);transition:all .2s}
 .chip:hover{border-color:var(--ink);color:var(--ink)}
 .chip-active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.grid{display:grid;gap:26px 22px;grid-template-columns:repeat(4,minmax(0,1fr))}
+.grid{display:grid;gap:32px 24px;grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1080px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 14px}}
 @media(max-width:420px){.grid{grid-template-columns:minmax(0,1fr)}}
@@ -2378,19 +2456,40 @@ const css = `
   .card-name{font-size:14px}
 }
 .card{display:flex;flex-direction:column;cursor:pointer;min-width:0}
-.card-media{position:relative;aspect-ratio:1/1;border-radius:3px;overflow:hidden;background:#fff}
-.badge{position:absolute;top:12px;left:12px;z-index:2;background:var(--paper);color:var(--ink);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:2px}
+.card-media{position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 1px 12px rgba(26,22,19,.04);transition:box-shadow .35s,transform .35s}
+.card:hover .card-media{box-shadow:0 18px 44px rgba(26,22,19,.13);transform:translateY(-4px)}
+.card-imgwrap{position:absolute;inset:0}
+.card-imgwrap .garment{transition:transform .9s cubic-bezier(.2,.7,.2,1),opacity .5s}
+.card:hover .card-imgwrap .garment{transform:scale(1.06)}
+.card-alt{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;opacity:0;transition:opacity .55s ease}
+.card:hover .card-alt{opacity:1}
+.card-shine{position:absolute;top:0;bottom:0;left:-75%;width:50%;background:linear-gradient(78deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-12deg);pointer-events:none;z-index:2}
+.card:hover .card-shine{left:130%;transition:left .9s ease}
+.card-badges{position:absolute;top:12px;left:12px;z-index:3;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.badge{background:var(--paper);color:var(--ink);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:100px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .badge-sale{background:var(--accent);color:#fff}
-.wish{position:absolute;top:10px;right:10px;z-index:2;width:34px;height:34px;border-radius:50%;background:rgba(250,249,246,.85);display:grid;place-items:center;color:var(--ink);opacity:0;transition:opacity .25s}
-.card:hover .wish{opacity:1}
-@media(hover:none){.wish{opacity:1}}
+.badge-low{background:#8a5a1a;color:#fff}
+.badge-out{background:var(--ink);color:var(--paper)}
+.wish{position:absolute;top:10px;right:10px;z-index:3;width:36px;height:36px;border-radius:50%;background:rgba(250,249,246,.9);backdrop-filter:blur(4px);display:grid;place-items:center;color:var(--ink);opacity:0;transform:translateY(-4px);transition:opacity .25s,transform .25s,color .2s}
+.card:hover .wish{opacity:1;transform:none}
+.wish-on{opacity:1;color:var(--accent)}
+.wish:hover{color:var(--accent)}
+@media(hover:none){.wish{opacity:1;transform:none}}
+.card-quick{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:14px;display:flex;justify-content:center;background:linear-gradient(transparent,rgba(26,22,19,.5));transform:translateY(100%);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+.card:hover .card-quick{transform:none}
+.card-quick span{display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:10px 18px;border-radius:100px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+@media(hover:none){.card-quick{display:none}}
 .card-body{padding:14px 2px 0;min-width:0}
+.card-line{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
 .card-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;min-width:0}
-.card-name{font-size:15px;font-weight:500;min-width:0;overflow-wrap:anywhere;hyphens:auto}
+.card-name{font-family:var(--serif);font-size:17px;font-weight:400;min-width:0;overflow-wrap:anywhere;line-height:1.2}
 .card-price{font-size:14px;display:flex;gap:8px;align-items:baseline;white-space:nowrap;flex-shrink:0}
 .old{color:var(--ink-soft);text-decoration:line-through;font-size:13px}
 .sale-price{color:var(--accent);font-weight:600}
-.swatches{display:flex;gap:6px;margin-top:9px}
+.card-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px}
+.card-sizes{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
+.card-sizes span{font-size:11px;color:var(--ink-soft);border:1px solid var(--line);border-radius:4px;padding:2px 7px}
+.swatches{display:flex;gap:6px;flex-shrink:0}
 .swatch{width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
 
 .product{max-width:1180px;margin:0 auto;padding:26px 32px 80px}
@@ -3219,6 +3318,57 @@ html{scroll-behavior:smooth}
 .ship-row svg{color:var(--accent);flex-shrink:0;margin-top:2px}
 .ship-row b{display:block;font-size:14px;font-weight:500;margin-bottom:2px}
 .ship-row span{font-size:13px;color:var(--ink-soft);line-height:1.5}
+
+/* карточки способа оформления */
+.mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.mode-cards{grid-template-columns:1fr}}
+.mode-card{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;cursor:pointer;transition:border-color .25s,box-shadow .3s,transform .2s,background .25s;position:relative}
+.mode-card:hover:not(:disabled){border-color:var(--ink);transform:translateY(-3px);box-shadow:0 14px 34px rgba(26,22,19,.1)}
+.mode-card.on{border-color:var(--accent);background:rgba(124,38,52,.045);box-shadow:0 10px 30px rgba(124,38,52,.1)}
+.mode-ic{width:40px;height:40px;border-radius:50%;background:var(--card);display:grid;place-items:center;color:var(--accent);margin-bottom:4px}
+.mode-card.on .mode-ic{background:var(--accent);color:#fff}
+.mode-t{font-family:var(--serif);font-size:20px;color:var(--ink)}
+.mode-d{font-size:13.5px;line-height:1.6;color:var(--ink-soft)}
+.mode-badge{margin-top:4px;font-size:11.5px;letter-spacing:.03em;color:var(--accent);background:rgba(124,38,52,.08);border-radius:100px;padding:5px 12px}
+.mode-soon{opacity:.55;cursor:not-allowed}
+.mode-soon .mode-badge{color:var(--ink-soft);background:var(--card)}
+
+.toggle-row{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:14px;cursor:pointer}
+.toggle-row input{width:20px;height:20px;margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
+.toggle-row b{display:block;font-size:14px;font-weight:500;margin-bottom:3px}
+.toggle-row i{font-style:normal;font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+
+/* кинематографичная история вещи */
+.pstory{max-width:1120px;margin:70px auto 0;padding:0 32px}
+@media(max-width:760px){.pstory{padding:0 20px;margin-top:50px}}
+.pstory-quote-wrap{margin:0 0 70px}
+.pstory-quote{text-align:center;max-width:760px;margin:0 auto;position:relative;padding:20px}
+.pstory-mark{font-family:var(--serif);font-size:90px;color:var(--accent);opacity:.28;line-height:0;position:absolute;top:34px;left:0}
+.pstory-quote p{font-family:var(--serif);font-size:clamp(21px,3.2vw,32px);line-height:1.5;color:var(--ink);font-style:italic}
+.pstory-sign{display:inline-block;margin-top:20px;font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:var(--accent)}
+
+.pstory-bands{display:flex;flex-direction:column;gap:70px}
+.pstory-band{display:grid;grid-template-columns:1.15fr 1fr;gap:48px;align-items:center}
+.pstory-band.flip{direction:rtl}
+.pstory-band.flip>*{direction:ltr}
+@media(max-width:820px){.pstory-band,.pstory-band.flip{grid-template-columns:1fr;gap:22px;direction:ltr}}
+.pstory-media{position:relative;aspect-ratio:4/5;border-radius:10px;overflow:hidden;background:#fff;cursor:zoom-in;box-shadow:0 4px 30px rgba(26,22,19,.07)}
+.pstory-media img{width:100%;height:100%;object-fit:contain;background:#fff;transition:transform 1s cubic-bezier(.2,.7,.2,1)}
+.pstory-media:hover img{transform:scale(1.06)}
+.pstory-zoom{position:absolute;right:14px;bottom:14px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--ink);opacity:0;transform:translateY(6px);transition:opacity .3s,transform .3s}
+.pstory-media:hover .pstory-zoom{opacity:1;transform:none}
+.pstory-no{font-family:var(--serif);font-size:34px;color:var(--accent);display:block;margin-bottom:12px}
+.pstory-text h3{font-family:var(--serif);font-weight:400;font-size:clamp(22px,3vw,30px);line-height:1.2;margin-bottom:12px}
+.pstory-text p{color:var(--ink-soft);font-size:15px;line-height:1.75;max-width:420px}
+
+.texture-wrap{margin:80px 0 0;padding-top:44px;border-top:1px solid var(--line)}
+.texture-strip{display:flex;gap:14px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x mandatory}
+.texture-shot{position:relative;flex:0 0 auto;width:230px;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:#fff;cursor:zoom-in;scroll-snap-align:start;box-shadow:0 2px 16px rgba(26,22,19,.05)}
+.texture-shot img{width:100%;height:100%;object-fit:contain;background:#fff;transition:transform .7s ease}
+.texture-shot:hover img{transform:scale(1.1)}
+.texture-zoom{position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--ink);opacity:0;transition:opacity .25s}
+.texture-shot:hover .texture-zoom{opacity:1}
+@media(max-width:760px){.texture-shot{width:170px}}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
