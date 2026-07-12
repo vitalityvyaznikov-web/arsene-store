@@ -37,6 +37,8 @@ const normalizeProduct = (p = {}) => ({
   material: p.material || "",
   care: p.care || "",
   desc: p.desc || "",
+  highlights: p.highlights || "",
+  fit: p.fit || "",
   sizes: arr(p.sizes).length ? arr(p.sizes) : ["Единый"],
   colors: arr(p.colors).length ? arr(p.colors) : ["#8f8677"],
   images: arr(p.images),
@@ -54,6 +56,13 @@ const DEFAULT_SETTINGS = {
   philosophyTitle: "Философия",
   philosophyText:
     "Rovelle — это одежда без логомании. Мы верим, что вещь должна говорить фактурой, швами и посадкой, а не надписью на груди. Каждая позиция отбирается вручную: архивные мотивы, честные материалы, ограниченные партии.",
+  line1Name: "Heritage",
+  line1Desc: "Винтаж, архивные мотивы и Стокгольм. Вещи с историей — для тех, кто экспериментирует.",
+  line2Name: "Quiet Luxe",
+  line2Desc: "Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.",
+  craftTitle: "Дрип — это детали, а не принт",
+  luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
+  manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
   phone: "+7 900 000-00-00",
   email: "hello@vashresale.ru",
   address: "Москва",
@@ -69,7 +78,9 @@ const DEFAULT_SETTINGS = {
 
 /* Две линии одного бренда */
 const LINES = ["Archive", "Quiet Luxe"];
-const LINE_LABELS = { "Archive": "Rovelle Archive", "Quiet Luxe": "Rovelle Quiet Luxe" };
+const LINE_LABELS = { "Archive": "Rovelle Heritage", "Quiet Luxe": "Rovelle Quiet Luxe" };
+const LINE_SHORT = { "Archive": "Heritage", "Quiet Luxe": "Quiet Luxe" };  // короткое имя линии
+const catLabel = (c) => (c === "Всё" ? "Весь дроп" : LINE_SHORT[c] || c);
 const CATEGORIES = ["Всё", ...LINES];
 const SHOP_CATS = LINES;
 const TAGS = ["", "Новинка", "Sale", "Архив", "Лимит"];
@@ -460,7 +471,7 @@ function Store() {
           <div className="mm-links">
             {CATEGORIES.map((c, i) => (
               <button key={c} className="mobile-link" style={{ animationDelay: `${i * 45}ms` }} onClick={() => { openCatalog(c); setMenuOpen(false); }}>
-                <span>{c === "Всё" ? "Весь дроп" : c}</span><ArrowRight size={18} />
+                <span>{catLabel(c)}</span><ArrowRight size={18} />
               </button>
             ))}
             <button className="mobile-link" style={{ animationDelay: "180ms" }} onClick={() => { go("favorites"); setMenuOpen(false); }}><span>Избранное</span><Heart size={17} /></button>
@@ -744,7 +755,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
   };
 
   const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0;
-  const tickerWords = ["Archive", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
+  const tickerWords = ["Heritage", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
   const shots = products.flatMap((p) => (p.images || []).map((im, i) => ({ src: imgThumb(im), id: `${p.id}-${i}`, pid: p.id, name: p.name })));
 
   return (
@@ -763,15 +774,15 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
       {/* ---------- Две линии — два мира ---------- */}
       <section className="lines">
         <button className="line-panel line-archive" onClick={() => scrollToDrop("Archive")}>
-          <span className="line-no">Линия 01</span>
-          <span className="line-name">Archive / Drip</span>
-          <span className="line-desc">Винтаж, архивные мотивы и Стокгольм. Вещи с историей — для тех, кто экспериментирует.</span>
+          <span className="line-no">Линия 1</span>
+          <span className="line-name">{settings.line1Name || "Heritage"}</span>
+          <span className="line-desc">{settings.line1Desc}</span>
           <span className="line-go">Смотреть вещи <ArrowRight size={14} /></span>
         </button>
         <button className="line-panel line-luxe" onClick={() => scrollToDrop("Quiet Luxe")}>
-          <span className="line-no">Линия 02</span>
-          <span className="line-name">Quiet Luxe</span>
-          <span className="line-desc">Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.</span>
+          <span className="line-no">Линия 2</span>
+          <span className="line-name">{settings.line2Name || "Quiet Luxe"}</span>
+          <span className="line-desc">{settings.line2Desc}</span>
           <span className="line-go">Скоро <ArrowRight size={14} /></span>
         </button>
       </section>
@@ -790,13 +801,13 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         <Reveal>
           <div className="drop-head">
             <div>
-              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 02" : "Дроп 001 · Линия Archive"}</div>
+              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 2" : "Дроп 001 · Линия Heritage"}</div>
               <h2 className="drop-title">{activeCat === "Quiet Luxe" ? "Quiet Luxe" : "Первые вещи"}</h2>
             </div>
             <div className="drop-tools">
               <div className="line-tabs">
                 {CATEGORIES.map((c) => (
-                  <button key={c} className={activeCat === c ? "on" : ""} onClick={() => setActiveCat(c)}>{c}</button>
+                  <button key={c} className={activeCat === c ? "on" : ""} onClick={() => setActiveCat(c)}>{catLabel(c)}</button>
                 ))}
               </div>
               <div className="search-wrap">
@@ -826,7 +837,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
                 <Reveal className="manifesto-card-wrap">
                   <div className="manifesto-card">
                     <Monogram size={64} />
-                    <p>Мы не печатаем логотипы.<br />Мы прошиваем историю.</p>
+                    <p>{(settings.manifesto || "Мы не печатаем логотипы.\nМы прошиваем историю.").split("\n").map((ln, k) => <React.Fragment key={k}>{k > 0 && <br />}{ln}</React.Fragment>)}</p>
                   </div>
                 </Reveal>
               )}
@@ -877,7 +888,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
       {/* ---------- Что мы проверяем ---------- */}
       <section className="craft">
-        <Reveal><h2 className="craft-title">Дрип — это детали,<br />а не принт</h2></Reveal>
+        <Reveal><h2 className="craft-title">{settings.craftTitle || "Дрип — это детали, а не принт"}</h2></Reveal>
         <div className="craft-grid">
           {[
             ["01", "Швы и фактуры", "Архивные стирки, честный деним, необычные обработки. Вещь интересно рассматривать вблизи."],
@@ -900,9 +911,9 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         <div className="luxe-glow" aria-hidden="true" />
         <Reveal>
           <div className="luxe-inner">
-            <div className="luxe-eyebrow">Линия 02 · скоро</div>
+            <div className="luxe-eyebrow">Линия 2 · скоро</div>
             <h2 className="luxe-title">Quiet <em>Luxe</em></h2>
-            <p className="luxe-text">Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.</p>
+            <p className="luxe-text">{settings.luxeText}</p>
             {settings.telegram && (
               <a className="luxe-btn" href={settings.telegram} target="_blank" rel="noreferrer">
                 <Send size={15} /> Узнать о запуске первым
@@ -1055,6 +1066,72 @@ function Lightbox({ images, index, p, onClose, onIndex }) {
   );
 }
 
+/* --------- Богатая карточка вещи: вкладки с деталями --------- */
+function ProductTabs({ p }) {
+  const [tab, setTab] = useState("about");
+  const highlights = (p.highlights || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const fabrics = fabricsOf(p.material).map(capit);
+
+  const tabs = [
+    { k: "about", l: "Детали" },
+    { k: "fabric", l: "Ткань и уход" },
+    { k: "fit", l: "Размер и посадка" },
+    { k: "ship", l: "Доставка" },
+  ];
+
+  return (
+    <div className="ptabs">
+      <div className="ptabs-head" role="tablist">
+        {tabs.map((t) => (
+          <button key={t.k} role="tab" aria-selected={tab === t.k} className={`ptab ${tab === t.k ? "on" : ""}`} onClick={() => setTab(t.k)}>{t.l}</button>
+        ))}
+      </div>
+
+      <div className="ptabs-body">
+        {tab === "about" && (
+          <div className="ptab-pane">
+            {highlights.length > 0 ? (
+              <ul className="hl-list">
+                {highlights.map((h, i) => <li key={i}><Check size={15} /> <span>{h}</span></li>)}
+              </ul>
+            ) : (
+              <p className="ptab-empty">Автор ещё не добавил детали для этой вещи.</p>
+            )}
+            <div className="spec-mini">
+              {p.brand && <SpecRow label="Бренд" value={p.brand} />}
+              <SpecRow label="Линия" value={`${LINE_LABELS[p.cat] || p.cat} · ${typeLabel(p.type)}`} />
+            </div>
+          </div>
+        )}
+        {tab === "fabric" && (
+          <div className="ptab-pane">
+            {fabrics.length > 0 && <div className="p-fabrics">{fabrics.map((f) => <span key={f}>{f}</span>)}</div>}
+            <div className="spec-mini">
+              <SpecRow label="Состав" value={p.material} />
+              <SpecRow label="Уход" value={p.care || "Бережная стирка, не отбеливать, сушить в расправленном виде."} />
+            </div>
+          </div>
+        )}
+        {tab === "fit" && (
+          <div className="ptab-pane">
+            {p.fit ? <p className="ptab-text">{p.fit}</p> : <p className="ptab-text">Классическая посадка. Если сомневаетесь между размерами, берите меньший для более четкого силуэта или больший для свободного.</p>}
+            <div className="p-fabrics">{(p.sizes || []).map((s) => <span key={s}>{s}</span>)}</div>
+          </div>
+        )}
+        {tab === "ship" && (
+          <div className="ptab-pane">
+            <div className="ship-rows">
+              <div className="ship-row"><Package size={17} /><div><b>Отправка {p.delivery}</b><span>Бесплатно при заказе от 5 000 ₽</span></div></div>
+              <div className="ship-row"><Send size={17} /><div><b>Оплата через СБП или при получении</b><span>Менеджер подтвердит заказ в течение часа</span></div></div>
+              <div className="ship-row"><ArrowLeft size={17} /><div><b>Возврат 14 дней</b><span>Если вещь не подошла — организуем обратную доставку</span></div></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0, related = [], onOpen, favorites = [], onFavId, pieceIndex = 0, pieceTotal = 1, onPrev, onNext }) {
   const images = getGallery(p);
   const [active, setActive] = useState(0);
@@ -1157,13 +1234,7 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
             <span>Отправка 1–3 дня</span><i>·</i><span>СБП или при получении</span><i>·</i><span>Возврат 14 дней</span>
           </div>
 
-          <div className="specs">
-            {p.brand && <SpecRow label="Бренд" value={p.brand} />}
-            <SpecRow label="Линия" value={`${LINE_LABELS[p.cat] || p.cat} · ${typeLabel(p.type)}`} />
-            <SpecRow label="Состав" value={p.material} />
-            <SpecRow label="Уход" value={p.care} />
-            <SpecRow label="Сроки доставки" value={`${p.delivery} · бесплатно от 5 000 ₽`} />
-          </div>
+          <ProductTabs p={p} />
         </div>
       </div>
 
@@ -1886,6 +1957,19 @@ function SettingsForm({ settings, onSave, onCancel }) {
         </div>
 
         <div className="form-block">
+          <h3 className="block-title">Блоки главной страницы</h3>
+          <div className="row-2">
+            <Field label="Линия 1 — название"><input value={f.line1Name} onChange={(e) => set("line1Name", e.target.value)} placeholder="Heritage" /></Field>
+            <Field label="Линия 2 — название"><input value={f.line2Name} onChange={(e) => set("line2Name", e.target.value)} placeholder="Quiet Luxe" /></Field>
+          </div>
+          <Field label="Линия 1 — описание"><textarea rows={2} value={f.line1Desc} onChange={(e) => set("line1Desc", e.target.value)} /></Field>
+          <Field label="Линия 2 — описание"><textarea rows={2} value={f.line2Desc} onChange={(e) => set("line2Desc", e.target.value)} /></Field>
+          <Field label="Заголовок блока «Детали»"><input value={f.craftTitle} onChange={(e) => set("craftTitle", e.target.value)} /></Field>
+          <Field label="Текст тизера Quiet Luxe"><textarea rows={3} value={f.luxeText} onChange={(e) => set("luxeText", e.target.value)} /></Field>
+          <Field label="Манифест (2 строки)"><textarea rows={2} value={f.manifesto} onChange={(e) => set("manifesto", e.target.value)} placeholder={"Мы не печатаем логотипы.\nМы прошиваем историю."} /></Field>
+        </div>
+
+        <div className="form-block">
           <h3 className="block-title">Контакты</h3>
           <div className="row-2">
             <Field label="Телефон"><input value={f.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+7 900 000-00-00" /></Field>
@@ -1981,7 +2065,7 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
   const [f, setF] = useState(() => ({
     name: initial?.name || "", brand: initial?.brand || "", cat: initial?.cat || "Archive", type: initial?.type || "jeans",
     price: initial?.price || "", oldPrice: initial?.oldPrice || "", material: initial?.material || "",
-    care: initial?.care || "", desc: initial?.desc || "", tag: initial?.tag || "",
+    care: initial?.care || "", desc: initial?.desc || "", highlights: initial?.highlights || "", fit: initial?.fit || "", tag: initial?.tag || "",
     stock: initial?.stock ?? 10, delivery: initial?.delivery || "1–3 дня по России",
     sizes: initial?.sizes ? [...initial.sizes] : ["S", "M", "L"],
     colors: initial?.colors ? [...initial.colors] : ["#8f8677"],
@@ -2036,7 +2120,7 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
     onSave({
       name: f.name.trim(), brand: f.brand.trim(), cat: f.cat, type: f.type, price: Number(f.price),
       oldPrice: f.oldPrice ? Number(f.oldPrice) : 0, material: f.material.trim(), care: f.care.trim(),
-      desc: f.desc.trim(), tag: f.tag.trim() || undefined,
+      desc: f.desc.trim(), highlights: f.highlights.trim(), fit: f.fit.trim(), tag: f.tag.trim() || undefined,
       stock: Math.max(0, parseInt(f.stock, 10) || 0), delivery: f.delivery.trim() || "1–3 дня по России",
       sizes: f.sizes, colors: f.colors.length ? f.colors : ["#8f8677"], images: f.images,
     });
@@ -2094,6 +2178,8 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
           <Field label="Состав"><input value={f.material} onChange={(e) => set("material", e.target.value)} placeholder="80% шерсть, 20% полиамид" /></Field>
           <Field label="Уход"><input value={f.care} onChange={(e) => set("care", e.target.value)} placeholder="Сухая чистка" /></Field>
           <Field label="Описание"><textarea rows={4} value={f.desc} onChange={(e) => set("desc", e.target.value)} placeholder="Короткое описание товара…" /></Field>
+          <Field label="Ключевые детали (каждая с новой строки)"><textarea rows={4} value={f.highlights} onChange={(e) => set("highlights", e.target.value)} placeholder={"Автоподзавод, 24 камня\nВодозащита 100 м\nСапфировое стекло"} /></Field>
+          <Field label="Заметка о посадке"><textarea rows={3} value={f.fit} onChange={(e) => set("fit", e.target.value)} placeholder="Свободный крой. Модель ростом 182 см в размере L." /></Field>
         </div>
 
         <div className="form-col">
@@ -2781,18 +2867,32 @@ html{scroll-behavior:smooth}
 .ticker:hover .ticker-track{animation-play-state:paused}
 
 /* две линии */
-.lines{display:flex;min-height:430px}
-.line-panel{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;text-align:left;gap:12px;padding:44px 40px;transition:flex .45s cubic-bezier(.2,.7,.2,1),background .3s;cursor:pointer;position:relative;overflow:hidden}
-.line-panel:hover{flex:1.5}
+.lines{display:grid;grid-template-columns:1fr 1fr;min-height:460px}
+.line-panel{display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;text-align:left;gap:13px;padding:48px 44px;cursor:pointer;position:relative;overflow:hidden;transition:transform .5s cubic-bezier(.2,.7,.2,1),box-shadow .5s,filter .4s}
+/* фоновая буква-знак, проявляется при наведении */
+.line-panel::before{content:"R";position:absolute;right:-6%;bottom:-18%;font-family:var(--serif);font-size:clamp(220px,26vw,360px);line-height:1;opacity:.045;transform:translateY(20px) rotate(-4deg);transition:opacity .5s,transform .7s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+/* тонкая линия-акцент, «прочерчивается» снизу вверх слева */
+.line-panel::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);transform:scaleY(0);transform-origin:bottom;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.line-panel>*{position:relative;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.line-panel:hover{transform:translateY(-4px);box-shadow:0 30px 60px rgba(26,22,19,.14);z-index:2}
+.line-panel:hover::before{opacity:.1;transform:translateY(0) rotate(0)}
+.line-panel:hover::after{transform:scaleY(1)}
+.line-panel:hover>*{transform:translateX(8px)}
+/* соседняя панель слегка гаснет, когда наводишь на другую */
+.lines:hover .line-panel:not(:hover){filter:brightness(.97) saturate(.92)}
 .line-archive{background:var(--card);border-right:1px solid var(--line)}
 .line-luxe{background:#191512;color:#efe9df}
+.line-luxe::after{background:#c99a6b}
+.line-luxe::before{color:#c99a6b;opacity:.06}
+.line-luxe:hover::before{opacity:.13}
 .line-no{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent)}
 .line-luxe .line-no{color:#c99a6b}
 .line-name{font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,44px);line-height:1.05}
 .line-desc{font-size:14px;line-height:1.65;color:var(--ink-soft);max-width:420px}
 .line-luxe .line-desc{color:#b3aa99}
-.line-go{display:inline-flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-top:8px;border-bottom:1px solid currentColor;padding-bottom:3px}
-@media(max-width:820px){.lines{flex-direction:column}.line-archive{border-right:none;border-bottom:1px solid var(--line)}.line-panel{padding:36px 24px;min-height:250px}}
+.line-go{display:inline-flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-top:8px;border-bottom:1px solid currentColor;padding-bottom:3px;transition:gap .3s}
+.line-panel:hover .line-go{gap:13px}
+@media(max-width:820px){.lines{grid-template-columns:1fr}.line-archive{border-right:none;border-bottom:1px solid var(--line)}.line-panel{padding:36px 24px;min-height:230px}.line-panel:hover{transform:none;box-shadow:none}.line-panel:hover>*{transform:none}}
 
 /* цифры */
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));max-width:1120px;margin:0 auto;padding:64px 32px 6px;gap:18px}
@@ -3098,6 +3198,27 @@ html{scroll-behavior:smooth}
   .lb-imgwrap{max-height:64vh}.lb-imgwrap img{max-height:64vh}
   .zoom-img{cursor:pointer}
 }
+
+/* вкладки на странице товара */
+.ptabs{margin-top:6px;border-top:1px solid var(--line)}
+.ptabs-head{display:flex;gap:4px;overflow-x:auto;padding-top:14px;margin-bottom:6px}
+.ptab{padding:8px 4px;margin-right:18px;font-size:13px;letter-spacing:.02em;color:var(--ink-soft);position:relative;white-space:nowrap;transition:color .2s}
+.ptab:hover{color:var(--ink)}
+.ptab.on{color:var(--ink)}
+.ptab.on::after{content:"";position:absolute;left:0;right:0;bottom:-7px;height:2px;background:var(--accent);border-radius:2px}
+.ptabs-body{padding:14px 0 4px;min-height:120px}
+.ptab-pane{animation:fade .3s ease}
+.hl-list{display:flex;flex-direction:column;gap:11px;margin-bottom:18px}
+.hl-list li{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.55;color:var(--ink)}
+.hl-list li svg{color:var(--accent);flex-shrink:0;margin-top:3px}
+.ptab-text{font-size:14.5px;line-height:1.75;color:var(--ink-soft);margin-bottom:16px}
+.ptab-empty{font-size:14px;color:var(--ink-soft);font-style:italic;margin-bottom:16px}
+.spec-mini{border-top:1px solid var(--line);padding-top:6px}
+.ship-rows{display:flex;flex-direction:column;gap:16px}
+.ship-row{display:flex;gap:13px;align-items:flex-start}
+.ship-row svg{color:var(--accent);flex-shrink:0;margin-top:2px}
+.ship-row b{display:block;font-size:14px;font-weight:500;margin-bottom:2px}
+.ship-row span{font-size:13px;color:var(--ink-soft);line-height:1.5}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
