@@ -448,9 +448,13 @@ function Store() {
   }
 
   const accountTarget = isAdmin ? "admin" : user ? "account" : "login";
+  const themeClass =
+    view === "catalog" && activeCat === "Quiet Luxe" ? "theme-luxe"
+    : view === "catalog" && activeCat === "Archive" ? "theme-heritage"
+    : "";
 
   return (
-    <div className="store">
+    <div className={`store ${themeClass}`}>
       <style>{css}</style>
       <ScrollProgress />
       <BackToTop />
@@ -705,7 +709,9 @@ function PieceMedia({ p, onOpen }) {
     const r = el.getBoundingClientRect();
     const x = (e.clientX - r.left) / r.width - 0.5;
     const y = (e.clientY - r.top) / r.height - 0.5;
-    el.style.transform = `perspective(900px) rotateX(${(-y * 3.5).toFixed(2)}deg) rotateY(${(x * 3.5).toFixed(2)}deg)`;
+    el.style.transform = `perspective(900px) rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 4).toFixed(2)}deg)`;
+    el.style.setProperty("--gx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--gy", `${e.clientY - r.top}px`);
   };
   const leave = () => { if (ref.current) ref.current.style.transform = ""; };
 
@@ -713,8 +719,10 @@ function PieceMedia({ p, onOpen }) {
     <button className="piece-media" ref={ref} onMouseMove={move} onMouseLeave={leave} onClick={onOpen} aria-label={p.name}>
       <Media p={p} img={gallery[0]} large />
       {alt && <img className="piece-alt" src={alt.src} alt="" loading="lazy" />}
+      <span className="piece-glow" aria-hidden="true" />
       <span className="piece-shine" aria-hidden="true" />
       {p.tag && <span className="piece-tag">{p.tag}</span>}
+      <span className="piece-view"><Search size={15} /> Открыть</span>
     </button>
   );
 }
@@ -842,7 +850,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
                   </div>
                 </Reveal>
               )}
-              <Reveal delay={(i % 2) * 80}>
+              <Reveal delay={(i % 2) * 80} className={i % 2 ? "rv-right" : "rv-left"}>
                 <article className={`piece ${i % 2 ? "piece-flip" : ""}`}>
                   <PieceMedia p={p} onOpen={() => onOpen(p.id)} />
                   <div className="piece-info">
@@ -2454,7 +2462,12 @@ const GARMENTS = {
 /* ------------------------------ Стили ------------------------------ */
 const css = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap');
-.store{--paper:#f3f1ec;--card:#faf9f6;--ink:#1a1613;--ink-soft:#6b655c;--line:#e3ddd2;--accent:#7c2634;--serif:'Fraunces',Georgia,serif;--sans:'Instrument Sans',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-family:var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased}
+.store{--paper:#f3f1ec;--card:#faf9f6;--ink:#1a1613;--ink-soft:#6b655c;--line:#e3ddd2;--accent:#7c2634;--glow:124,38,52;--serif:'Fraunces',Georgia,serif;--sans:'Instrument Sans',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-family:var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .8s ease,color .8s ease}
+/* Тема Heritage — тёплый тёмно-синий, светлый в целом */
+.theme-heritage{--paper:#eef1f5;--card:#f7f9fc;--ink:#1c2740;--ink-soft:#5a6478;--line:#d5dbe6;--accent:#2f4a73;--glow:47,74,115}
+/* Тема Quiet Luxe — тёмный люкс с золотом */
+.theme-luxe{--paper:#16130f;--card:#1e1a15;--ink:#efe7d8;--ink-soft:#a79c88;--line:#332c22;--accent:#c99a6b;--glow:201,154,107}
+.store,.store *{transition-property:background-color,border-color,color;transition-duration:.6s;transition-timing-function:ease}
 .store *{box-sizing:border-box;margin:0;padding:0}
 .store button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
 .garment{width:100%;height:100%;display:block;object-fit:cover}
@@ -2488,7 +2501,7 @@ const css = `
 .hero-sub{max-width:440px;margin:26px auto 34px;color:var(--ink-soft);font-size:16px;line-height:1.6}
 
 .btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--ink);color:var(--paper);padding:14px 26px;border-radius:6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;transition:transform .18s cubic-bezier(.2,.7,.2,1),box-shadow .25s,opacity .2s}
-.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 10px 26px rgba(26,22,19,.22)}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 30px rgba(var(--glow),.35)}
 .btn-primary:active{transform:translateY(1px)}
 .btn-primary:disabled{opacity:.4;cursor:not-allowed}
 .btn-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);padding:13px 20px;border-radius:6px;font-size:13px;letter-spacing:.04em;text-transform:uppercase;transition:border-color .2s,background .2s}
@@ -2991,6 +3004,8 @@ html{scroll-behavior:smooth}
 
 /* появление при прокрутке */
 .rv{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+.rv-left{transform:translateX(-40px)}
+.rv-right{transform:translateX(40px)}
 .rv-in{opacity:1;transform:none}
 
 /* фирменное начертание */
@@ -3010,7 +3025,7 @@ html{scroll-behavior:smooth}
 
 /* первый экран */
 .bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative;overflow:hidden}
-.bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px circle at var(--mx,50%) var(--my,38%),rgba(124,38,52,.09),transparent 68%);transition:background .1s}
+.bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,38%),rgba(var(--glow),.12),transparent 68%);transition:background .1s}
 .bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--serif);font-size:clamp(240px,42vw,520px);line-height:1;color:var(--accent);opacity:.05;pointer-events:none;user-select:none;max-width:100%}
 .bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
 .bhero-name .wm-line{margin-top:.1em}
@@ -3073,7 +3088,7 @@ html{scroll-behavior:smooth}
 .drop-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .line-tabs{display:flex;gap:4px;border:1px solid var(--line);border-radius:100px;padding:4px;background:var(--paper)}
 .line-tabs button{padding:8px 16px;border-radius:100px;font-size:13px;color:var(--ink-soft);transition:all .2s;white-space:nowrap}
-.line-tabs button.on{background:var(--ink);color:var(--paper)}
+.line-tabs button.on{background:var(--accent);color:#fff;box-shadow:0 6px 18px rgba(var(--glow),.3)}
 .search-wrap{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:100px;padding:9px 16px;background:var(--paper);color:var(--ink-soft)}
 .search-wrap input{border:none;background:none;outline:none;font-family:inherit;font-size:13px;color:var(--ink);width:110px}
 .drop-empty{color:var(--ink-soft);text-align:center;padding:60px 0}
@@ -3085,7 +3100,12 @@ html{scroll-behavior:smooth}
 .piece-flip>*{direction:ltr}
 @media(max-width:820px){.piece,.piece-flip{grid-template-columns:1fr;gap:22px;direction:ltr}}
 .piece-media{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff;cursor:pointer;display:block;width:100%;transition:transform .35s ease,box-shadow .35s ease;will-change:transform}
-.piece-media:hover{box-shadow:0 24px 60px rgba(26,22,19,.16)}
+.piece-media:hover{box-shadow:0 30px 70px rgba(var(--glow),.22)}
+.piece-glow{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(260px circle at var(--gx,50%) var(--gy,40%),rgba(var(--glow),.16),transparent 62%)}
+.piece-media:hover .piece-glow{opacity:1}
+.piece-view{position:absolute;left:50%;bottom:16px;transform:translateX(-50%) translateY(12px);z-index:3;display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:9px 18px;border-radius:100px;box-shadow:0 8px 22px rgba(0,0,0,.16);opacity:0;transition:opacity .35s,transform .35s cubic-bezier(.2,.7,.2,1)}
+.piece-media:hover .piece-view{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(hover:none){.piece-view{display:none}}
 .piece-media .garment{transition:transform .8s cubic-bezier(.2,.7,.2,1)}
 .piece-media:hover .garment{transform:scale(1.05)}
 .piece-alt{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;opacity:0;transition:opacity .45s ease}
@@ -3095,7 +3115,7 @@ html{scroll-behavior:smooth}
 .piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px;z-index:2}
 .piece-no{font-family:var(--serif);font-size:44px;color:var(--accent);line-height:1;margin-bottom:14px}
 .piece-no span{font-size:16px;color:var(--ink-soft)}
-.piece-name{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3.2vw,34px);line-height:1.15;margin-bottom:8px}
+.piece-name{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3.2vw,34px);line-height:1.15;margin-bottom:8px;transition:color .3s}
 .piece-meta{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px}
 .piece-desc{color:var(--ink-soft);font-size:14.5px;line-height:1.7;margin-bottom:16px;max-width:440px}
 .piece-sizes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
@@ -3426,6 +3446,14 @@ html{scroll-behavior:smooth}
 .p-acc-item.open .p-acc-a{grid-template-rows:1fr}
 .p-acc-a>div{overflow:hidden;color:var(--ink-soft);font-size:14px;line-height:1.7}
 .p-acc-item.open .p-acc-a>div{padding:0 2px 18px}
+
+/* индикатор активной линии/темы */
+.line-tabs button{position:relative}
+.line-tabs button.on::before{content:"";position:absolute;left:14px;right:14px;bottom:-2px;height:2px;background:transparent}
+/* мягкое свечение вокруг активной вкладки уже задано box-shadow */
+
+/* плавная смена темы для крупных тёмных блоков */
+.lines,.drop,.craft,.stats,.info-block,.philosophy,.ticker{transition:background .8s ease}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
