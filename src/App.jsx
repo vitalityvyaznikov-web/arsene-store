@@ -951,14 +951,34 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
   const alt = gallery[1]?.src ? gallery[1] : null;
   const soldOut = p.stock <= 0;
   const low = !soldOut && p.stock <= 3;
+  const ref = React.useRef(null);
+
+  const move = (e) => {
+    const el = ref.current;
+    if (!el || window.matchMedia("(pointer: coarse)").matches) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.setProperty("--rx", `${(-y * 6).toFixed(2)}deg`);
+    el.style.setProperty("--ry", `${(x * 6).toFixed(2)}deg`);
+    el.style.setProperty("--gx", `${(e.clientX - r.left)}px`);
+    el.style.setProperty("--gy", `${(e.clientY - r.top)}px`);
+  };
+  const leave = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.setProperty("--rx", "0deg");
+    el.style.setProperty("--ry", "0deg");
+  };
 
   return (
-    <article className="card" onClick={onOpen}>
+    <article className="card" onClick={onOpen} ref={ref} onMouseMove={move} onMouseLeave={leave}>
       <div className="card-media">
         <div className="card-imgwrap">
           <Media p={p} img={cover} />
           {alt && <img className="card-alt" src={alt.src} alt="" loading="lazy" />}
         </div>
+        <span className="card-glow" aria-hidden="true" />
         <span className="card-shine" aria-hidden="true" />
         <div className="card-badges">
           {p.tag && <span className={`badge ${p.tag === "Sale" ? "badge-sale" : ""}`}>{p.tag}</span>}
@@ -1087,73 +1107,124 @@ function Lightbox({ images, index, p, onClose, onIndex }) {
   );
 }
 
-/* --------- Богатая карточка вещи: вкладки с деталями --------- */
-function ProductTabs({ p }) {
-  const [tab, setTab] = useState("about");
-  const highlights = (p.highlights || "").split("\n").map((x) => x.trim()).filter(Boolean);
-  const fabrics = fabricsOf(p.material).map(capit);
-
-  const tabs = [
-    { k: "about", l: "Детали" },
-    { k: "fabric", l: "Ткань и уход" },
-    { k: "fit", l: "Размер и посадка" },
-    { k: "ship", l: "Доставка" },
-  ];
+/* --------- Чистый аккордеон характеристик на странице вещи --------- */
+function ProductAccordion({ p }) {
+  const [open, setOpen] = useState("care");
+  const rows = [];
+  if (p.material) rows.push(["care", "Состав и уход", <>{p.material}{p.care ? <><br />{p.care}</> : <><br />Бережная стирка, сушить в расправленном виде.</>}</>]);
+  rows.push(["fit", "Размер и посадка", p.fit || "Классическая посадка. Между размерами выбирайте меньший для чёткого силуэта."]);
+  rows.push(["ship", "Доставка и возврат", <>{p.delivery}, бесплатно от 5 000 ₽. Возврат в течение 14 дней.</>]);
 
   return (
-    <div className="ptabs">
-      <div className="ptabs-head" role="tablist">
-        {tabs.map((t) => (
-          <button key={t.k} role="tab" aria-selected={tab === t.k} className={`ptab ${tab === t.k ? "on" : ""}`} onClick={() => setTab(t.k)}>{t.l}</button>
-        ))}
-      </div>
-
-      <div className="ptabs-body">
-        {tab === "about" && (
-          <div className="ptab-pane">
-            {highlights.length > 0 ? (
-              <ul className="hl-list">
-                {highlights.map((h, i) => <li key={i}><Check size={15} /> <span>{h}</span></li>)}
-              </ul>
-            ) : (
-              <p className="ptab-empty">Автор ещё не добавил детали для этой вещи.</p>
-            )}
-            <div className="spec-mini">
-              {p.brand && <SpecRow label="Бренд" value={p.brand} />}
-              <SpecRow label="Линия" value={`${LINE_LABELS[p.cat] || p.cat} · ${typeLabel(p.type)}`} />
-            </div>
-          </div>
-        )}
-        {tab === "fabric" && (
-          <div className="ptab-pane">
-            {fabrics.length > 0 && <div className="p-fabrics">{fabrics.map((f) => <span key={f}>{f}</span>)}</div>}
-            <div className="spec-mini">
-              <SpecRow label="Состав" value={p.material} />
-              <SpecRow label="Уход" value={p.care || "Бережная стирка, не отбеливать, сушить в расправленном виде."} />
-            </div>
-          </div>
-        )}
-        {tab === "fit" && (
-          <div className="ptab-pane">
-            {p.fit ? <p className="ptab-text">{p.fit}</p> : <p className="ptab-text">Классическая посадка. Если сомневаетесь между размерами, берите меньший для более четкого силуэта или больший для свободного.</p>}
-            <div className="p-fabrics">{(p.sizes || []).map((s) => <span key={s}>{s}</span>)}</div>
-          </div>
-        )}
-        {tab === "ship" && (
-          <div className="ptab-pane">
-            <div className="ship-rows">
-              <div className="ship-row"><Package size={17} /><div><b>Отправка {p.delivery}</b><span>Бесплатно при заказе от 5 000 ₽</span></div></div>
-              <div className="ship-row"><Send size={17} /><div><b>Оплата через СБП или при получении</b><span>Менеджер подтвердит заказ в течение часа</span></div></div>
-              <div className="ship-row"><ArrowLeft size={17} /><div><b>Возврат 14 дней</b><span>Если вещь не подошла — организуем обратную доставку</span></div></div>
-            </div>
-          </div>
-        )}
-      </div>
+    <div className="p-acc">
+      {rows.map(([k, q, a]) => (
+        <div key={k} className={`p-acc-item ${open === k ? "open" : ""}`}>
+          <button className="p-acc-q" onClick={() => setOpen(open === k ? "" : k)}>
+            <span>{q}</span><Plus size={15} className="p-acc-plus" />
+          </button>
+          <div className="p-acc-a"><div>{a}</div></div>
+        </div>
+      ))}
     </div>
   );
 }
 
-/* --------- Кинематографичная история вещи (скролл-анимации) --------- */
+/* --------- Изображение с зумом по наведению (десктоп) --------- */
+function ZoomImage({ p, img, onOpen }) {
+  const ref = React.useRef(null);
+  const [zoom, setZoom] = useState(false);
+  const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
+  const move = (e) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    el.style.setProperty("--zx", `${Math.max(0, Math.min(100, x))}%`);
+    el.style.setProperty("--zy", `${Math.max(0, Math.min(100, y))}%`);
+  };
+
+  if (img && img.src) {
+    return (
+      <div
+        ref={ref}
+        className={`zoom-img ${zoom ? "zoomed" : ""}`}
+        onMouseMove={move}
+        onMouseEnter={() => !coarse && setZoom(true)}
+        onMouseLeave={() => setZoom(false)}
+        onClick={onOpen}
+        role="button"
+        aria-label="Открыть фото на весь экран"
+        style={{ "--zurl": `url(${img.zoom || img.src})` }}
+      >
+        <Media p={p} img={img} large eager />
+        <span className="zoom-hint"><Search size={14} /> {coarse ? "Нажмите, чтобы увеличить" : "Наведите для зума · клик — на весь экран"}</span>
+      </div>
+    );
+  }
+  return <div className="zoom-img" onClick={onOpen}><Media p={p} img={img} large /></div>;
+}
+
+/* --------- Лайтбокс: галерея на весь экран --------- */
+function Lightbox({ images, index, p, onClose, onIndex }) {
+  const [scale, setScale] = useState(1);
+  const startX = React.useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") onIndex((index + 1) % images.length);
+      if (e.key === "ArrowLeft") onIndex((index - 1 + images.length) % images.length);
+    };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [index, images.length, onClose, onIndex]);
+
+  const cur = images[index];
+  const go = (d) => { setScale(1); onIndex((index + d + images.length) % images.length); };
+
+  return (
+    <div className="lb" role="dialog" aria-modal="true">
+      <div className="lb-bar">
+        <span className="lb-count">{index + 1} / {images.length}</span>
+        <div className="lb-tools">
+          <button onClick={() => setScale((s) => (s === 1 ? 2 : 1))} aria-label="Увеличить">{scale === 1 ? <Plus size={18} /> : <Minus size={18} />}</button>
+          <button onClick={onClose} aria-label="Закрыть"><X size={20} /></button>
+        </div>
+      </div>
+      <div className="lb-stage" onClick={onClose}>
+        {images.length > 1 && <button className="lb-nav lb-prev" onClick={(e) => { e.stopPropagation(); go(-1); }} aria-label="Предыдущее"><ArrowLeft size={22} /></button>}
+        <div
+          className="lb-imgwrap"
+          onClick={(e) => { e.stopPropagation(); setScale((s) => (s === 1 ? 2 : 1)); }}
+          onTouchStart={(e) => (startX.current = e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            if (startX.current == null) return;
+            const dx = e.changedTouches[0].clientX - startX.current;
+            if (Math.abs(dx) > 45) go(dx < 0 ? 1 : -1);
+            startX.current = null;
+          }}
+        >
+          <img src={cur.zoom || cur.src} alt={p.name} style={{ transform: `scale(${scale})`, cursor: scale === 1 ? "zoom-in" : "zoom-out" }} />
+        </div>
+        {images.length > 1 && <button className="lb-nav lb-next" onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Следующее"><ArrowRight size={22} /></button>}
+      </div>
+      {images.length > 1 && (
+        <div className="lb-thumbs" onClick={(e) => e.stopPropagation()}>
+          {images.map((im, i) => (
+            <button key={im.key} className={`lb-thumb ${i === index ? "on" : ""}`} onClick={() => { setScale(1); onIndex(i); }}>
+              <img src={im.thumb || im.src} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* --------- Богатая карточка вещи: вкладки с деталями --------- */
 function ProductStory({ p, onZoom }) {
   const gallery = getGallery(p);
   const highlights = (p.highlights || "").split("\n").map((x) => x.trim()).filter(Boolean);
@@ -1279,6 +1350,7 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
         <div className="product-info">
           <div className="p-eyebrow">{LINE_LABELS[p.cat] || p.cat}{p.brand ? ` · ${p.brand}` : ""}</div>
           <h1 className="p-name">{p.name}</h1>
+          <div className="p-meta-line">{typeLabel(p.type)}{fabrics.length ? ` · ${fabrics.join(", ")}` : ""}</div>
           <div className="p-price">
             {p.oldPrice > 0 && <span className="old">{money(p.oldPrice)}</span>}
             <span className={p.oldPrice > 0 ? "sale-price big" : "big"}>{money(p.price)}</span>
@@ -1286,17 +1358,6 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
               {soldOut ? "распродано" : p.stock <= 3 ? `осталось ${p.stock}` : "в наличии"}
             </span>
           </div>
-
-          {p.desc && (
-            <div className="p-story">
-              <div className="p-story-label">История вещи</div>
-              <p>{p.desc}</p>
-            </div>
-          )}
-
-          {fabrics.length > 0 && (
-            <div className="p-fabrics">{fabrics.map((f) => <span key={f}>{f}</span>)}</div>
-          )}
 
           <div className="size-block">
             <div className="size-head"><span>Размер</span>{size && <span className="size-chosen">выбран: {size}</span>}</div>
@@ -1318,10 +1379,10 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
           {added && <button className="link-btn go-cart" onClick={onGoCart}>Перейти в корзину →</button>}
 
           <div className="p-promise">
-            <span>Отправка 1–3 дня</span><i>·</i><span>СБП или при получении</span><i>·</i><span>Возврат 14 дней</span>
+            <span>Отправка {p.delivery}</span><i>·</i><span>Возврат 14 дней</span>
           </div>
 
-          <ProductTabs p={p} />
+          <ProductAccordion p={p} />
         </div>
       </div>
 
@@ -1346,8 +1407,8 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
           <div className="drop-eyebrow">Дроп 001</div>
           <h2 className="drop-title" style={{ marginBottom: 30 }}>Другие вещи</h2>
           <div className="grid">
-            {related.map((r) => (
-              <ProductCard key={r.id} p={r} onOpen={() => onOpen(r.id)} isFav={favorites.includes(r.id)} onFav={() => onFavId(r.id)} />
+            {related.map((r, i) => (
+              <Reveal key={r.id} delay={(i % 4) * 70}><ProductCard p={r} onOpen={() => onOpen(r.id)} isFav={favorites.includes(r.id)} onFav={() => onFavId(r.id)} /></Reveal>
             ))}
           </div>
         </div>
@@ -1434,8 +1495,8 @@ function FavoritesView({ products, onOpen, onFav, onShop }) {
       {products.length === 0
         ? <div className="cart-empty"><Heart size={44} strokeWidth={1} /><p>В избранном пока пусто</p>
             <button className="btn-primary" onClick={onShop}>Перейти в каталог</button></div>
-        : <div className="grid">{products.map((p) => (
-            <ProductCard key={p.id} p={p} onOpen={() => onOpen(p.id)} isFav={true} onFav={() => onFav(p.id)} />
+        : <div className="grid">{products.map((p, i) => (
+            <Reveal key={p.id} delay={(i % 4) * 70}><ProductCard p={p} onOpen={() => onOpen(p.id)} isFav={true} onFav={() => onFav(p.id)} /></Reveal>
           ))}</div>}
     </section>
   );
@@ -2455,17 +2516,19 @@ const css = `
   .card-price{font-size:13px}
   .card-name{font-size:14px}
 }
-.card{display:flex;flex-direction:column;cursor:pointer;min-width:0}
-.card-media{position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 1px 12px rgba(26,22,19,.04);transition:box-shadow .35s,transform .35s}
-.card:hover .card-media{box-shadow:0 18px 44px rgba(26,22,19,.13);transform:translateY(-4px)}
+.card{display:flex;flex-direction:column;cursor:pointer;min-width:0;perspective:1000px}
+.card-media{position:relative;aspect-ratio:4/5;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 1px 12px rgba(26,22,19,.04);transition:box-shadow .35s,transform .5s cubic-bezier(.2,.7,.2,1);transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))}
+.card:hover .card-media{box-shadow:0 26px 60px rgba(26,22,19,.18)}
 .card-imgwrap{position:absolute;inset:0}
 .card-imgwrap .garment{transition:transform .9s cubic-bezier(.2,.7,.2,1),opacity .5s}
 .card:hover .card-imgwrap .garment{transform:scale(1.06)}
 .card-alt{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;opacity:0;transition:opacity .55s ease}
 .card:hover .card-alt{opacity:1}
+.card-glow{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(240px circle at var(--gx,50%) var(--gy,40%),rgba(255,255,255,.28),transparent 60%)}
+.card:hover .card-glow{opacity:1}
 .card-shine{position:absolute;top:0;bottom:0;left:-75%;width:50%;background:linear-gradient(78deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-12deg);pointer-events:none;z-index:2}
 .card:hover .card-shine{left:130%;transition:left .9s ease}
-.card-badges{position:absolute;top:12px;left:12px;z-index:3;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.card-badges{position:absolute;top:12px;left:12px;z-index:3;display:flex;flex-direction:column;gap:6px;align-items:flex-start;transform:translateZ(30px)}
 .badge{background:var(--paper);color:var(--ink);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:100px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .badge-sale{background:var(--accent);color:#fff}
 .badge-low{background:#8a5a1a;color:#fff}
@@ -2475,10 +2538,11 @@ const css = `
 .wish-on{opacity:1;color:var(--accent)}
 .wish:hover{color:var(--accent)}
 @media(hover:none){.wish{opacity:1;transform:none}}
-.card-quick{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:14px;display:flex;justify-content:center;background:linear-gradient(transparent,rgba(26,22,19,.5));transform:translateY(100%);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
-.card:hover .card-quick{transform:none}
+.card-quick{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:14px;display:flex;justify-content:center;background:linear-gradient(transparent,rgba(26,22,19,.5));transform:translateY(100%) translateZ(30px);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+.card:hover .card-quick{transform:translateY(0) translateZ(30px)}
 .card-quick span{display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:10px 18px;border-radius:100px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
 @media(hover:none){.card-quick{display:none}}
+@media(hover:none){.card-media{transform:none!important}}
 .card-body{padding:14px 2px 0;min-width:0}
 .card-line{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px}
 .card-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;min-width:0}
@@ -3119,9 +3183,6 @@ html{scroll-behavior:smooth}
 .avail-dot.in{background:rgba(74,107,82,.12);color:#3f5c47}
 .avail-dot.low{background:rgba(176,120,40,.14);color:#8a5a1a}
 .avail-dot.out{background:rgba(124,38,52,.1);color:var(--accent)}
-.p-story{border-left:2px solid var(--accent);padding:4px 0 4px 18px;margin:20px 0 18px}
-.p-story-label{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
-.p-story p{color:var(--ink-soft);font-size:15px;line-height:1.75}
 .p-fabrics{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
 .p-fabrics span{border:1px solid var(--line);background:var(--card);border-radius:100px;padding:6px 14px;font-size:12.5px;color:var(--ink-soft)}
 .btn-cta .cta-price{opacity:.75;font-weight:400}
@@ -3298,26 +3359,7 @@ html{scroll-behavior:smooth}
   .zoom-img{cursor:pointer}
 }
 
-/* вкладки на странице товара */
-.ptabs{margin-top:6px;border-top:1px solid var(--line)}
-.ptabs-head{display:flex;gap:4px;overflow-x:auto;padding-top:14px;margin-bottom:6px}
-.ptab{padding:8px 4px;margin-right:18px;font-size:13px;letter-spacing:.02em;color:var(--ink-soft);position:relative;white-space:nowrap;transition:color .2s}
-.ptab:hover{color:var(--ink)}
-.ptab.on{color:var(--ink)}
-.ptab.on::after{content:"";position:absolute;left:0;right:0;bottom:-7px;height:2px;background:var(--accent);border-radius:2px}
-.ptabs-body{padding:14px 0 4px;min-height:120px}
-.ptab-pane{animation:fade .3s ease}
-.hl-list{display:flex;flex-direction:column;gap:11px;margin-bottom:18px}
-.hl-list li{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.55;color:var(--ink)}
-.hl-list li svg{color:var(--accent);flex-shrink:0;margin-top:3px}
-.ptab-text{font-size:14.5px;line-height:1.75;color:var(--ink-soft);margin-bottom:16px}
-.ptab-empty{font-size:14px;color:var(--ink-soft);font-style:italic;margin-bottom:16px}
-.spec-mini{border-top:1px solid var(--line);padding-top:6px}
-.ship-rows{display:flex;flex-direction:column;gap:16px}
-.ship-row{display:flex;gap:13px;align-items:flex-start}
-.ship-row svg{color:var(--accent);flex-shrink:0;margin-top:2px}
-.ship-row b{display:block;font-size:14px;font-weight:500;margin-bottom:2px}
-.ship-row span{font-size:13px;color:var(--ink-soft);line-height:1.5}
+
 
 /* карточки способа оформления */
 .mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -3369,6 +3411,21 @@ html{scroll-behavior:smooth}
 .texture-zoom{position:absolute;right:10px;bottom:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--ink);opacity:0;transition:opacity .25s}
 .texture-shot:hover .texture-zoom{opacity:1}
 @media(max-width:760px){.texture-shot{width:170px}}
+
+/* мета-строка под названием */
+.p-meta-line{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:2px 0 16px}
+
+/* чистый аккордеон характеристик */
+.p-acc{margin-top:26px;border-top:1px solid var(--line)}
+.p-acc-item{border-bottom:1px solid var(--line)}
+.p-acc-q{width:100%;display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 2px;font-size:14px;letter-spacing:.02em;color:var(--ink);text-align:left;transition:color .2s}
+.p-acc-q:hover{color:var(--accent)}
+.p-acc-plus{flex-shrink:0;color:var(--accent);transition:transform .35s cubic-bezier(.2,.7,.2,1)}
+.p-acc-item.open .p-acc-plus{transform:rotate(45deg)}
+.p-acc-a{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s cubic-bezier(.2,.7,.2,1)}
+.p-acc-item.open .p-acc-a{grid-template-rows:1fr}
+.p-acc-a>div{overflow:hidden;color:var(--ink-soft);font-size:14px;line-height:1.7}
+.p-acc-item.open .p-acc-a>div{padding:0 2px 18px}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
