@@ -127,10 +127,11 @@ const processImage = (file) => uploadProductImage(file);
 /* -------- Галерея: реальные фото ИЛИ плейсхолдеры-силуэты -------- */
 const imgFull = (im) => (typeof im === "string" ? im : im?.full || im?.thumb || "");
 const imgThumb = (im) => (typeof im === "string" ? im : im?.thumb || im?.full || "");
+const imgZoom = (im) => (typeof im === "string" ? im : im?.zoom || im?.full || im?.thumb || "");
 
 function getGallery(p) {
   if (p.images && p.images.length)
-    return p.images.map((im, i) => ({ key: "img" + i, label: "Фото " + (i + 1), src: imgFull(im), thumb: imgThumb(im) }));
+    return p.images.map((im, i) => ({ key: "img" + i, label: "Фото " + (i + 1), src: imgFull(im), thumb: imgThumb(im), zoom: imgZoom(im) }));
   return [
     { key: "front", label: "Спереди", bg: "#eeeae2", mode: "front" },
     { key: "styled", label: "В образе", bg: "#ddd6c8", mode: "styled" },
@@ -959,10 +960,106 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
 }
 
 /* --------------------------- Страница товара --------------------------- */
+/* --------- Изображение с зумом по наведению (десктоп) --------- */
+function ZoomImage({ p, img, onOpen }) {
+  const ref = React.useRef(null);
+  const [zoom, setZoom] = useState(false);
+  const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+
+  const move = (e) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    el.style.setProperty("--zx", `${Math.max(0, Math.min(100, x))}%`);
+    el.style.setProperty("--zy", `${Math.max(0, Math.min(100, y))}%`);
+  };
+
+  if (img && img.src) {
+    return (
+      <div
+        ref={ref}
+        className={`zoom-img ${zoom ? "zoomed" : ""}`}
+        onMouseMove={move}
+        onMouseEnter={() => !coarse && setZoom(true)}
+        onMouseLeave={() => setZoom(false)}
+        onClick={onOpen}
+        role="button"
+        aria-label="Открыть фото на весь экран"
+        style={{ "--zurl": `url(${img.zoom || img.src})` }}
+      >
+        <Media p={p} img={img} large eager />
+        <span className="zoom-hint"><Search size={14} /> {coarse ? "Нажмите, чтобы увеличить" : "Наведите для зума · клик — на весь экран"}</span>
+      </div>
+    );
+  }
+  return <div className="zoom-img" onClick={onOpen}><Media p={p} img={img} large /></div>;
+}
+
+/* --------- Лайтбокс: галерея на весь экран --------- */
+function Lightbox({ images, index, p, onClose, onIndex }) {
+  const [scale, setScale] = useState(1);
+  const startX = React.useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowRight") onIndex((index + 1) % images.length);
+      if (e.key === "ArrowLeft") onIndex((index - 1 + images.length) % images.length);
+    };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [index, images.length, onClose, onIndex]);
+
+  const cur = images[index];
+  const go = (d) => { setScale(1); onIndex((index + d + images.length) % images.length); };
+
+  return (
+    <div className="lb" role="dialog" aria-modal="true">
+      <div className="lb-bar">
+        <span className="lb-count">{index + 1} / {images.length}</span>
+        <div className="lb-tools">
+          <button onClick={() => setScale((s) => (s === 1 ? 2 : 1))} aria-label="Увеличить">{scale === 1 ? <Plus size={18} /> : <Minus size={18} />}</button>
+          <button onClick={onClose} aria-label="Закрыть"><X size={20} /></button>
+        </div>
+      </div>
+      <div className="lb-stage" onClick={onClose}>
+        {images.length > 1 && <button className="lb-nav lb-prev" onClick={(e) => { e.stopPropagation(); go(-1); }} aria-label="Предыдущее"><ArrowLeft size={22} /></button>}
+        <div
+          className="lb-imgwrap"
+          onClick={(e) => { e.stopPropagation(); setScale((s) => (s === 1 ? 2 : 1)); }}
+          onTouchStart={(e) => (startX.current = e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            if (startX.current == null) return;
+            const dx = e.changedTouches[0].clientX - startX.current;
+            if (Math.abs(dx) > 45) go(dx < 0 ? 1 : -1);
+            startX.current = null;
+          }}
+        >
+          <img src={cur.zoom || cur.src} alt={p.name} style={{ transform: `scale(${scale})`, cursor: scale === 1 ? "zoom-in" : "zoom-out" }} />
+        </div>
+        {images.length > 1 && <button className="lb-nav lb-next" onClick={(e) => { e.stopPropagation(); go(1); }} aria-label="Следующее"><ArrowRight size={22} /></button>}
+      </div>
+      {images.length > 1 && (
+        <div className="lb-thumbs" onClick={(e) => e.stopPropagation()}>
+          {images.map((im, i) => (
+            <button key={im.key} className={`lb-thumb ${i === index ? "on" : ""}`} onClick={() => { setScale(1); onIndex(i); }}>
+              <img src={im.thumb || im.src} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0, related = [], onOpen, favorites = [], onFavId, pieceIndex = 0, pieceTotal = 1, onPrev, onNext }) {
   const images = getGallery(p);
   const [active, setActive] = useState(0);
   const [imgKey, setImgKey] = useState(0); // для плавной смены кадра
+  const [lightbox, setLightbox] = useState(false);
   const singleSize = p.sizes.length === 1;
   const [size, setSize] = useState(singleSize ? p.sizes[0] : null);
   const [added, setAdded] = useState(false);
@@ -1000,8 +1097,9 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
       <div className="product-grid">
         <div className="gallery">
           <div className="main-img">
-            <div key={imgKey} className="main-img-frame"><Media p={p} img={images[active]} large eager /></div>
+            <div key={imgKey} className="main-img-frame"><ZoomImage p={p} img={images[active]} onOpen={() => setLightbox(true)} /></div>
             {p.tag && <span className="piece-tag">{p.tag}</span>}
+            <button className="img-expand" onClick={() => setLightbox(true)} aria-label="На весь экран"><Plus size={16} /></button>
           </div>
           {images.length > 1 && (
             <div className="thumbs">
@@ -1094,6 +1192,8 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
           </div>
         </div>
       )}
+
+      {lightbox && <Lightbox images={images} index={active} p={p} onClose={() => setLightbox(false)} onIndex={setActive} />}
     </section>
   );
 }
@@ -2211,15 +2311,15 @@ const css = `
 @media(max-width:760px){.product{padding:20px 20px 60px}}
 .back-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:26px;transition:color .2s}
 .back-link:hover{color:var(--ink)}
-.product-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:56px;align-items:start}
+.product-grid{display:grid;grid-template-columns:1.15fr 1fr;gap:64px;align-items:start}
 @media(max-width:860px){.product-grid{grid-template-columns:1fr;gap:32px}}
-.main-img{aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff}
+.main-img{position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 2px 30px rgba(26,22,19,.05)}
 .thumbs{display:flex;gap:10px;margin-top:12px}
 .thumb{flex:1;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--line);opacity:.6;transition:opacity .25s,border-color .25s,transform .2s;padding:0}
 .thumb:hover{opacity:1;transform:translateY(-2px)}.thumb-active{opacity:1;border-color:var(--accent)}
 .product-info{padding-top:6px}
 .p-eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
-.p-name{font-family:var(--serif);font-weight:500;font-size:40px;line-height:1.05;letter-spacing:-.01em}
+.p-name{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4vw,44px);line-height:1.06;letter-spacing:-.01em;margin-bottom:2px}
 .p-price{display:flex;align-items:baseline;gap:12px;margin:18px 0 22px}
 .p-price .big{font-size:24px;font-weight:600}
 .p-desc{color:var(--ink-soft);line-height:1.7;max-width:440px}
@@ -2962,6 +3062,41 @@ html{scroll-behavior:smooth}
   .piece-media:hover .garment{transform:none}
   .piece-alt{display:none}
   .craft-card:hover{transform:none;box-shadow:none}
+}
+
+/* зум по наведению */
+.zoom-img{position:relative;width:100%;height:100%;cursor:zoom-in;overflow:hidden}
+.zoom-img .garment{transition:opacity .3s}
+.zoom-img.zoomed .garment{opacity:0}
+.zoom-img.zoomed::after{content:"";position:absolute;inset:0;background-image:var(--zurl);background-repeat:no-repeat;background-size:200%;background-position:var(--zx,50%) var(--zy,50%);background-color:#fff}
+.zoom-hint{position:absolute;left:14px;bottom:14px;display:inline-flex;align-items:center;gap:6px;background:rgba(26,22,19,.72);color:#fff;font-size:11px;letter-spacing:.03em;padding:6px 11px;border-radius:100px;pointer-events:none;opacity:0;transition:opacity .25s;z-index:3}
+.zoom-img:hover .zoom-hint{opacity:1}
+.zoom-img.zoomed .zoom-hint{opacity:0}
+.img-expand{position:absolute;top:14px;right:14px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.9);color:var(--ink);display:grid;place-items:center;box-shadow:0 4px 12px rgba(0,0,0,.12);z-index:3;transition:transform .2s}
+.img-expand:hover{transform:scale(1.08)}
+@media(hover:none){.zoom-hint{display:none}}
+
+/* лайтбокс */
+.lb{position:fixed;inset:0;z-index:100;background:rgba(20,17,15,.96);display:flex;flex-direction:column;animation:fade .25s ease}
+.lb-bar{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;color:#fff}
+.lb-count{font-size:13px;letter-spacing:.1em;color:#cbbfae}
+.lb-tools{display:flex;gap:8px}
+.lb-tools button{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:#fff;background:rgba(255,255,255,.08);transition:background .2s}
+.lb-tools button:hover{background:rgba(255,255,255,.16)}
+.lb-stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:0 12px}
+.lb-imgwrap{max-width:min(92vw,900px);max-height:78vh;display:flex;align-items:center;justify-content:center}
+.lb-imgwrap img{max-width:100%;max-height:78vh;object-fit:contain;transition:transform .3s cubic-bezier(.2,.7,.2,1);border-radius:2px;background:#fff}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;display:grid;place-items:center;transition:background .2s,transform .2s;z-index:2}
+.lb-nav:hover{background:rgba(255,255,255,.2)}
+.lb-prev{left:14px}.lb-next{right:14px}
+.lb-thumbs{display:flex;gap:8px;justify-content:center;padding:16px 12px 22px;overflow-x:auto}
+.lb-thumb{flex:0 0 auto;width:58px;height:58px;border-radius:6px;overflow:hidden;opacity:.45;border:1.5px solid transparent;transition:opacity .2s,border-color .2s}
+.lb-thumb.on{opacity:1;border-color:#c99a6b}
+.lb-thumb img{width:100%;height:100%;object-fit:contain;background:#fff}
+@media(max-width:640px){
+  .lb-nav{width:44px;height:44px}
+  .lb-imgwrap{max-height:64vh}.lb-imgwrap img{max-height:64vh}
+  .zoom-img{cursor:pointer}
 }
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
