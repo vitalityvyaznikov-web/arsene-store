@@ -172,15 +172,18 @@ function translateAuthError(msg = "") {
  */
 export async function uploadProductImage(file) {
   const base = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const [fullBlob, thumbBlob] = await Promise.all([
-    squareBlob(file, 900, 0.85),
+  // три размера: 400 для плитки, 1000 для страницы, 1600 для зума/лайтбокса
+  const [thumbBlob, fullBlob, zoomBlob] = await Promise.all([
     squareBlob(file, 400, 0.8),
+    squareBlob(file, 1000, 0.86),
+    squareBlob(file, 1600, 0.88),
   ]);
-  const [full, thumb] = await Promise.all([
-    putImage(`${base}.jpg`, fullBlob),
+  const [thumb, full, zoom] = await Promise.all([
     putImage(`${base}-thumb.jpg`, thumbBlob),
+    putImage(`${base}.jpg`, fullBlob),
+    putImage(`${base}-zoom.jpg`, zoomBlob),
   ]);
-  return { full, thumb };
+  return { full, thumb, zoom };
 }
 
 async function putImage(path, blob) {
