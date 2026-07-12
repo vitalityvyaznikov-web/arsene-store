@@ -48,7 +48,7 @@ const normalizeProduct = (p = {}) => ({
 
 const DEFAULT_SETTINGS = {
   brand: BRAND,
-  announce: "Дроп 001 — уже на сайте · Доставка по всей России",
+  announce: "Коллекция 001 — уже на сайте · Доставка по всей России",
   heroEyebrow: "Menswear · Est. 2026",
   heroTitle1: "Тихая",
   heroTitleEm: "роскошь",
@@ -81,7 +81,7 @@ const DEFAULT_SETTINGS = {
 const LINES = ["Archive", "Quiet Luxe"];
 const LINE_LABELS = { "Archive": "Rovelle Heritage", "Quiet Luxe": "Rovelle Quiet Luxe" };
 const LINE_SHORT = { "Archive": "Heritage", "Quiet Luxe": "Quiet Luxe" };  // короткое имя линии
-const catLabel = (c) => (c === "Всё" ? "Весь дроп" : LINE_SHORT[c] || c);
+const catLabel = (c) => (c === "Всё" ? "Вся коллекция" : LINE_SHORT[c] || c);
 const CATEGORIES = ["Всё", ...LINES];
 const SHOP_CATS = LINES;
 const TAGS = ["", "Новинка", "Sale", "Архив", "Лимит"];
@@ -450,7 +450,9 @@ function Store() {
   const accountTarget = isAdmin ? "admin" : user ? "account" : "login";
   const themeClass =
     view === "catalog" && activeCat === "Quiet Luxe" ? "theme-luxe"
+    : view === "catalog" && activeCat === "Heritage" ? "theme-heritage"
     : view === "catalog" && activeCat === "Archive" ? "theme-heritage"
+    : view === "catalog" ? "theme-heritage"
     : "";
 
   return (
@@ -659,7 +661,7 @@ function Monogram({ size = 150 }) {
 }
 
 /* --------- Первый экран: свет за курсором + параллакс --------- */
-function BrandHero({ settings, onDrop, onInfo }) {
+function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
   const ref = React.useRef(null);
   const markRef = React.useRef(null);
 
@@ -685,9 +687,18 @@ function BrandHero({ settings, onDrop, onInfo }) {
       <div className="bhero-mark" ref={markRef} aria-hidden="true">R</div>
       <h1 className="bhero-name"><Wordmark animate /></h1>
       <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
+      <Reveal delay={600}>
+        <div className="hero-lines">
+          {[["Archive", "Heritage"], ["Quiet Luxe", "Quiet Luxe"]].map(([val, label]) => (
+            <button key={val} className={`hero-line-btn ${activeCat === val ? "on" : ""}`} onClick={() => setActiveCat(val)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </Reveal>
       <Reveal delay={850}>
         <div className="bhero-cta">
-          <button className="btn-primary" onClick={onDrop}>Смотреть дроп 001 <ArrowRight size={15} /></button>
+          <button className="btn-primary" onClick={onDrop}>Смотреть коллекцию <ArrowRight size={15} /></button>
           <button className="btn-ghost" onClick={onInfo}>Философия</button>
         </div>
       </Reveal>
@@ -732,7 +743,7 @@ const FAQ_ITEMS = [
   ["Доставка", "Курьером по городу, СДЭК по всей России или самовывоз. Обычный срок — 1–3 дня. При заказе от 5 000 ₽ доставка бесплатная."],
   ["Оплата", "СБП онлайн-переводом или при получении. После оформления открывается чат с менеджером в Telegram — он подтверждает оплату и заказ, обычно в течение часа."],
   ["Возврат", "14 дней на возврат, если вещь не подошла: без следов носки, с сохранённой комплектацией. Напишите менеджеру — организуем обратную доставку."],
-  ["Как мы отбираем вещи", "Каждая позиция проходит ручной отбор: смотрим швы, фактуру, честность денима и посадку. В дроп попадает малая часть из того, что мы находим."],
+  ["Как мы отбираем вещи", "Каждая позиция проходит ручной отбор: смотрим швы, фактуру, честность денима и посадку. В коллекцию попадает малая часть из того, что мы находим."],
 ];
 function FAQ() {
   const [open, setOpen] = useState(0);
@@ -769,7 +780,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
   return (
     <>
-      <BrandHero settings={settings} onDrop={() => scrollToDrop("Archive")} onInfo={onInfo} />
+      <BrandHero settings={settings} activeCat={activeCat} setActiveCat={setActiveCat} onDrop={() => scrollToDrop("Archive")} onInfo={onInfo} />
 
       {/* ---------- Бегущая строка ---------- */}
       <div className="ticker" aria-hidden="true">
@@ -798,7 +809,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
       {/* ---------- Цифры бренда ---------- */}
       <section className="stats">
-        {[["001", "номер дропа"], ["2", "линии бренда"], ["14", "дней на возврат"], ["100%", "ручной отбор"]].map(([n, l], i) => (
+        {[["001", "номер коллекции"], ["2", "линии бренда"], ["14", "дней на возврат"], ["100%", "ручной отбор"]].map(([n, l], i) => (
           <Reveal key={l} delay={i * 90}>
             <div className="stat"><span className="stat-n">{n}</span><span className="stat-l">{l}</span></div>
           </Reveal>
@@ -810,7 +821,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         <Reveal>
           <div className="drop-head">
             <div>
-              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 2" : "Дроп 001 · Линия Heritage"}</div>
+              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 2" : "Коллекция 001 · Heritage"}</div>
               <h2 className="drop-title">{activeCat === "Quiet Luxe" ? "Quiet Luxe" : "Первые вещи"}</h2>
             </div>
             <div className="drop-tools">
@@ -856,8 +867,21 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
                   <div className="piece-info">
                     <div className="piece-no">{String(i + 1).padStart(2, "0")} <span>/ {String(list.length).padStart(2, "0")}</span></div>
                     <h3 className="piece-name">{p.name}</h3>
-                    <div className="piece-meta">{LINE_LABELS[p.cat] || p.cat} · {typeLabel(p.type)}{p.material ? ` · ${p.material.split(",")[0]}` : ""}</div>
+                    <div className="piece-meta">{LINE_LABELS[p.cat] || p.cat} · {typeLabel(p.type)}</div>
                     <p className="piece-desc">{p.desc}</p>
+                    {p.material && (
+                      <div className="piece-material">
+                        <div className="pm-swatch">
+                          {getGallery(p).length > 1
+                            ? <img src={getGallery(p)[getGallery(p).length - 1].thumb} alt="Материал" loading="lazy" />
+                            : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
+                        </div>
+                        <div className="pm-text">
+                          <span className="pm-label">Материал</span>
+                          <span className="pm-value">{p.material}</span>
+                        </div>
+                      </div>
+                    )}
                     <div className="piece-sizes">{(p.sizes || []).map((s) => <span key={s}>{s}</span>)}</div>
                     <div className="piece-row">
                       <div className="piece-price">
@@ -884,7 +908,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
       {/* ---------- Лента кадров ---------- */}
       {shots.length > 1 && (
-        <section className="strip" aria-label="Кадры дропа">
+        <section className="strip" aria-label="Кадры коллекции">
           <div className="strip-track">
             {shots.map((sh) => (
               <button key={sh.id} className="strip-shot" onClick={() => onOpen(sh.pid)} title={sh.name}>
@@ -1327,7 +1351,7 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
   return (
     <section className="product">
       <div className="p-top">
-        <button className="back-link" onClick={onBack}><ArrowLeft size={16} /> Дроп 001</button>
+        <button className="back-link" onClick={onBack}><ArrowLeft size={16} /> Коллекция</button>
         <div className="p-crumb">
           Вещь <b>{String(pieceIndex + 1).padStart(2, "0")}</b> / {String(pieceTotal).padStart(2, "0")}
           <span className="p-crumb-nav">
@@ -1412,7 +1436,7 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
 
       {related.length > 0 && (
         <div className="related">
-          <div className="drop-eyebrow">Дроп 001</div>
+          <div className="drop-eyebrow">Коллекция 001</div>
           <h2 className="drop-title" style={{ marginBottom: 30 }}>Другие вещи</h2>
           <div className="grid">
             {related.map((r, i) => (
@@ -1716,7 +1740,7 @@ function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOr
 
       <div className="success-actions">
         {canTrack && <button className="btn-ghost" onClick={onOrders}>Мои заказы</button>}
-        <button className="btn-ghost" onClick={onShop}>Вернуться к дропу</button>
+        <button className="btn-ghost" onClick={onShop}>Вернуться к коллекции</button>
       </div>
     </section>
   );
@@ -2477,7 +2501,7 @@ const css = `
 .muted-block{color:var(--ink-soft);padding:30px 0}
 
 .announce{background:var(--ink);color:var(--paper);text-align:center;font-size:12px;letter-spacing:.06em;padding:9px 16px;text-transform:uppercase}
-.header{position:sticky;top:0;z-index:40;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:18px 32px;background:rgba(243,241,236,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.header{position:sticky;top:0;z-index:40;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:18px 32px;background:color-mix(in srgb, var(--paper) 85%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .nav{display:flex;gap:24px;justify-self:start;align-items:center}
 .nav-link{font-size:13px;letter-spacing:.04em;color:var(--ink-soft);transition:color .2s}
 .nav-link:hover{color:var(--ink)}
@@ -2997,7 +3021,7 @@ html{scroll-behavior:smooth}
 .to-top:hover{transform:translateY(-3px)}
 
 /* липкая шапка с размытием */
-.header{position:sticky;top:0;z-index:50;background:rgba(243,241,236,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.header{position:sticky;top:0;z-index:50;background:color-mix(in srgb, var(--paper) 86%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .nav-link{position:relative}
 .nav-link::after{content:"";position:absolute;left:0;bottom:-4px;width:100%;height:1px;background:var(--accent);transform:scaleX(0);transform-origin:right;transition:transform .3s cubic-bezier(.2,.7,.2,1)}
 .nav-link:hover::after{transform:scaleX(1);transform-origin:left}
@@ -3316,7 +3340,7 @@ html{scroll-behavior:smooth}
   .product-grid{gap:22px}
   .p-name{font-size:28px}
   .thumbs{gap:8px}
-  .add-row{position:sticky;bottom:12px;z-index:20;background:rgba(243,241,236,.9);backdrop-filter:blur(10px);padding:10px;margin:20px -10px 24px;border-radius:12px;box-shadow:0 8px 24px rgba(26,22,19,.1)}
+  .add-row{position:sticky;bottom:12px;z-index:20;background:color-mix(in srgb, var(--paper) 90%, transparent);backdrop-filter:blur(10px);padding:10px;margin:20px -10px 24px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.1)}
   .p-crumb{font-size:12px}
 
   /* оформление: сводка сверху, поля крупнее для пальца */
@@ -3454,6 +3478,24 @@ html{scroll-behavior:smooth}
 
 /* плавная смена темы для крупных тёмных блоков */
 .lines,.drop,.craft,.stats,.info-block,.philosophy,.ticker{transition:background .8s ease}
+
+/* переключатель линий в hero */
+.hero-lines{display:inline-flex;gap:6px;padding:5px;border:1px solid var(--line);border-radius:100px;background:var(--card);margin:0 auto 22px;position:relative;z-index:2}
+.hero-line-btn{padding:9px 22px;border-radius:100px;font-size:13px;letter-spacing:.04em;color:var(--ink-soft);transition:color .3s;position:relative}
+.hero-line-btn.on{color:#fff}
+.hero-line-btn.on::before{content:"";position:absolute;inset:0;background:var(--accent);border-radius:100px;z-index:-1;box-shadow:0 6px 18px rgba(var(--glow),.35);animation:pillpop .4s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pillpop{0%{transform:scale(.85)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
+.hero-line-btn:not(.on):hover{color:var(--ink)}
+
+/* материал вещи в каталоге */
+.piece-material{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);max-width:340px;transition:border-color .3s,transform .3s}
+.piece-material:hover{border-color:var(--accent);transform:translateX(3px)}
+.pm-swatch{width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.pm-swatch img{width:100%;height:100%;object-fit:cover;display:block}
+.pm-color{display:block;width:100%;height:100%}
+.pm-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pm-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+.pm-value{font-size:13px;color:var(--ink);line-height:1.4}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
