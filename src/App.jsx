@@ -188,6 +188,7 @@ function Store() {
   const [orders, setOrders] = useState([]);
   const [lastOrderId, setLastOrderId] = useState(null);
   const [tgFallback, setTgFallback] = useState("");
+  const [payMeta, setPayMeta] = useState(null);
   const [booting, setBooting] = useState(true);
   const [fatal, setFatal] = useState("");
   const [fade, setFade] = useState(false);
@@ -465,10 +466,19 @@ function Store() {
           onOpen={openProduct} onInfo={() => go("info")} query={query} setQuery={setQuery} favorites={favorites} onFav={toggleFav} />
       )}
       {view === "product" && selectedId && byId(selectedId) && (
-        <ProductView key={selectedId} product={byId(selectedId)} onBack={() => openCatalog()} onAdd={addToCart}
-          inCart={cart.filter((i) => i.id === selectedId).reduce((s, i) => s + i.qty, 0)}
-          related={relatedTo(byId(selectedId))} onOpen={openProduct} favorites={favorites} onFavId={toggleFav}
-          onGoCart={() => go("cart")} isFav={favorites.includes(selectedId)} onFav={() => toggleFav(selectedId)} />
+        (() => {
+          const idx = products.findIndex((x) => x.id === selectedId);
+          const prevP = idx > 0 ? products[idx - 1] : null;
+          const nextP = idx < products.length - 1 ? products[idx + 1] : null;
+          return (
+            <ProductView key={selectedId} product={byId(selectedId)} onBack={() => openCatalog()} onAdd={addToCart}
+              inCart={cart.filter((i) => i.id === selectedId).reduce((s, i) => s + i.qty, 0)}
+              related={relatedTo(byId(selectedId))} onOpen={openProduct} favorites={favorites} onFavId={toggleFav}
+              pieceIndex={Math.max(0, idx)} pieceTotal={products.length}
+              onPrev={prevP ? () => openProduct(prevP.id) : undefined} onNext={nextP ? () => openProduct(nextP.id) : undefined}
+              onGoCart={() => go("cart")} isFav={favorites.includes(selectedId)} onFav={() => toggleFav(selectedId)} />
+          );
+        })()
       )}
       {view === "favorites" && (
         <FavoritesView products={products.filter((p) => favorites.includes(p.id))} onOpen={openProduct} onFav={toggleFav} onShop={() => openCatalog("Всё")} />
@@ -479,9 +489,9 @@ function Store() {
           onShop={() => openCatalog("Всё")} onOpen={openProduct} onCheckout={() => go("checkout")} />
       )}
       {view === "checkout" && (
-        <CheckoutView cart={cart} byId={byId} user={user} settings={settings} onBack={() => go("cart")} onPlace={placeOrder} onTgFallback={setTgFallback} />
+        <CheckoutView cart={cart} byId={byId} user={user} settings={settings} onBack={() => go("cart")} onPlace={placeOrder} onTgFallback={setTgFallback} onMeta={setPayMeta} />
       )}
-      {view === "success" && <SuccessView brand={settings.brand} orderId={lastOrderId} canTrack={!!user} tgLink={tgFallback} onOrders={() => go("orders")} onShop={() => { setTgFallback(""); openCatalog("Всё"); }} />}
+      {view === "success" && <SuccessView brand={settings.brand || BRAND} orderId={lastOrderId} canTrack={!!user} tgLink={tgFallback} payMeta={payMeta} settings={settings} onOrders={() => go("orders")} onShop={() => { setTgFallback(""); setPayMeta(null); openCatalog("Всё"); }} />}
       {view === "orders" && (
         user
           ? <OrdersView orders={orders.filter((o) => o.userId === user.id)} onShop={() => openCatalog("Всё")} onBack={() => go("account")} />
@@ -532,7 +542,7 @@ function Header({ brand, logo, cartCount, favCount, isAdmin, onLogo, onCart, onN
         {isAdmin && <button className="icon-btn only-desktop" aria-label="Выйти" onClick={onLogout}><LogOut size={18} /></button>}
         <button className="icon-btn cart-btn" aria-label="Корзина" onClick={onCart}>
           <ShoppingBag size={19} />
-          {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+          {cartCount > 0 && <span key={cartCount} className="cart-badge badge-pop">{cartCount}</span>}
         </button>
       </div>
     </header>
@@ -599,6 +609,16 @@ function Wordmark({ animate = false }) {
   );
 }
 
+/* --------- Сменяющиеся слова --------- */
+function RotatingWord({ words, interval = 2200 }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((x) => (x + 1) % words.length), interval);
+    return () => clearInterval(t);
+  }, [words.length, interval]);
+  return <span key={i} className="rot-word">{words[i]}</span>;
+}
+
 /* --------- Монограмма R в рамке --------- */
 function Monogram({ size = 150 }) {
   return (
@@ -642,7 +662,7 @@ function BrandHero({ settings, onDrop, onInfo }) {
           <button className="btn-ghost" onClick={onInfo}>Философия</button>
         </div>
       </Reveal>
-      <div className="bhero-est">{settings.heroEyebrow}</div>
+      <div className="bhero-est">{settings.heroEyebrow} · <RotatingWord words={["Архив", "Стокгольм", "Винтаж", "Без логотипов"]} /></div>
       <div className="bhero-scroll" aria-hidden="true"><span /></div>
     </section>
   );
@@ -788,7 +808,16 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         ) : (
           <div className="drop-list">
             {list.map((p, i) => (
-              <Reveal key={p.id} delay={(i % 2) * 80}>
+              <React.Fragment key={p.id}>
+              {i === 2 && (
+                <Reveal className="manifesto-card-wrap">
+                  <div className="manifesto-card">
+                    <Monogram size={64} />
+                    <p>Мы не печатаем логотипы.<br />Мы прошиваем историю.</p>
+                  </div>
+                </Reveal>
+              )}
+              <Reveal delay={(i % 2) * 80}>
                 <article className={`piece ${i % 2 ? "piece-flip" : ""}`}>
                   <PieceMedia p={p} onOpen={() => onOpen(p.id)} />
                   <div className="piece-info">
@@ -814,6 +843,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
                   </div>
                 </article>
               </Reveal>
+              </React.Fragment>
             ))}
           </div>
         )}
@@ -917,9 +947,10 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
 }
 
 /* --------------------------- Страница товара --------------------------- */
-function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0, related = [], onOpen, favorites = [], onFavId }) {
+function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart = 0, related = [], onOpen, favorites = [], onFavId, pieceIndex = 0, pieceTotal = 1, onPrev, onNext }) {
   const images = getGallery(p);
   const [active, setActive] = useState(0);
+  const [imgKey, setImgKey] = useState(0); // для плавной смены кадра
   const singleSize = p.sizes.length === 1;
   const [size, setSize] = useState(singleSize ? p.sizes[0] : null);
   const [added, setAdded] = useState(false);
@@ -928,31 +959,47 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
   const soldOut = p.stock <= 0;
   const maxedOut = !soldOut && inCart >= p.stock;
 
+  const showImg = (i) => { if (i === active) return; setActive(i); setImgKey((k) => k + 1); };
+
   const doAdd = (sz) => {
     const r = onAdd(p.id, sz);
     if (r && !r.ok) { setStockErr(r.error); setTimeout(() => setStockErr(""), 2500); return; }
     setStockErr("");
     setAdded(true); setTimeout(() => setAdded(false), 1800);
   };
-  const handleAdd = () => {
-    if (size) doAdd(size);
-    else setAskSize(true); // размер не выбран — просим выбрать
-  };
+  const handleAdd = () => { if (size) doAdd(size); else setAskSize(true); };
   const pickInPrompt = (s) => { setSize(s); setAskSize(false); doAdd(s); };
+
+  const fabrics = fabricsOf(p.material).map(capit);
 
   return (
     <section className="product">
-      <button className="back-link" onClick={onBack}><ArrowLeft size={16} /> Каталог</button>
+      <div className="p-top">
+        <button className="back-link" onClick={onBack}><ArrowLeft size={16} /> Дроп 001</button>
+        <div className="p-crumb">
+          Вещь <b>{String(pieceIndex + 1).padStart(2, "0")}</b> / {String(pieceTotal).padStart(2, "0")}
+          <span className="p-crumb-nav">
+            <button onClick={onPrev} disabled={!onPrev} aria-label="Предыдущая"><ArrowLeft size={14} /></button>
+            <button onClick={onNext} disabled={!onNext} aria-label="Следующая"><ArrowRight size={14} /></button>
+          </span>
+        </div>
+      </div>
+
       <div className="product-grid">
         <div className="gallery">
-          <div className="main-img"><Media p={p} img={images[active]} large /></div>
-          <div className="thumbs">
-            {images.map((img, i) => (
-              <button key={img.key} className={`thumb ${i === active ? "thumb-active" : ""}`} onClick={() => setActive(i)} aria-label={img.label}>
-                <Media p={p} img={img} />
-              </button>
-            ))}
+          <div className="main-img">
+            <div key={imgKey} className="main-img-frame"><Media p={p} img={images[active]} large eager /></div>
+            {p.tag && <span className="piece-tag">{p.tag}</span>}
           </div>
+          {images.length > 1 && (
+            <div className="thumbs">
+              {images.map((img, i) => (
+                <button key={img.key} className={`thumb ${i === active ? "thumb-active" : ""}`} onClick={() => showImg(i)} aria-label={img.label}>
+                  <Media p={p} img={img} />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="product-info">
@@ -961,12 +1008,21 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
           <div className="p-price">
             {p.oldPrice > 0 && <span className="old">{money(p.oldPrice)}</span>}
             <span className={p.oldPrice > 0 ? "sale-price big" : "big"}>{money(p.price)}</span>
+            <span className={`avail-dot ${soldOut ? "out" : p.stock <= 3 ? "low" : "in"}`}>
+              {soldOut ? "распродано" : p.stock <= 3 ? `осталось ${p.stock}` : "в наличии"}
+            </span>
           </div>
-          <p className="p-desc">{p.desc}</p>
 
-          <div className={`avail ${p.stock <= 0 ? "avail-out" : p.stock <= 3 ? "avail-low" : "avail-in"}`}>
-            {p.stock <= 0 ? "Нет в наличии" : p.stock <= 3 ? `Осталось мало — ${p.stock} шт` : "В наличии"}
-          </div>
+          {p.desc && (
+            <div className="p-story">
+              <div className="p-story-label">История вещи</div>
+              <p>{p.desc}</p>
+            </div>
+          )}
+
+          {fabrics.length > 0 && (
+            <div className="p-fabrics">{fabrics.map((f) => <span key={f}>{f}</span>)}</div>
+          )}
 
           <div className="size-block">
             <div className="size-head"><span>Размер</span>{size && <span className="size-chosen">выбран: {size}</span>}</div>
@@ -976,8 +1032,8 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
           </div>
 
           <div className="add-row">
-            <button className="btn-primary btn-block" onClick={handleAdd} disabled={soldOut || maxedOut}>
-              {soldOut ? "Нет в наличии" : maxedOut ? "Всё в корзине" : added ? <><Check size={16} /> Добавлено</> : "Добавить в корзину"}
+            <button className="btn-primary btn-block btn-cta" onClick={handleAdd} disabled={soldOut || maxedOut}>
+              {soldOut ? "Нет в наличии" : maxedOut ? "Всё в корзине" : added ? <><Check size={16} /> Добавлено</> : <>Добавить в корзину <span className="cta-price">· {money(p.price)}</span></>}
             </button>
             <button className={`fav-btn ${isFav ? "fav-on" : ""}`} onClick={onFav} aria-label="В избранное" title="В избранное">
               <Heart size={18} fill={isFav ? "currentColor" : "none"} />
@@ -987,13 +1043,16 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
           {maxedOut && !stockErr && <div className="stock-note">В корзине уже все доступные {p.stock} шт</div>}
           {added && <button className="link-btn go-cart" onClick={onGoCart}>Перейти в корзину →</button>}
 
+          <div className="p-promise">
+            <span>Отправка 1–3 дня</span><i>·</i><span>СБП или при получении</span><i>·</i><span>Возврат 14 дней</span>
+          </div>
+
           <div className="specs">
             {p.brand && <SpecRow label="Бренд" value={p.brand} />}
             <SpecRow label="Линия" value={`${LINE_LABELS[p.cat] || p.cat} · ${typeLabel(p.type)}`} />
             <SpecRow label="Состав" value={p.material} />
             <SpecRow label="Уход" value={p.care} />
-            {p.tag && <SpecRow label="Метка" value={p.tag} />}
-            <SpecRow label="Сроки доставки" value={`${p.delivery}${p.price ? " · бесплатно от 5 000 ₽" : ""}`} />
+            <SpecRow label="Сроки доставки" value={`${p.delivery} · бесплатно от 5 000 ₽`} />
           </div>
         </div>
       </div>
@@ -1014,7 +1073,8 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
 
       {related.length > 0 && (
         <div className="related">
-          <h2 className="section-title">Похожие товары</h2>
+          <div className="drop-eyebrow">Дроп 001</div>
+          <h2 className="drop-title" style={{ marginBottom: 30 }}>Другие вещи</h2>
           <div className="grid">
             {related.map((r) => (
               <ProductCard key={r.id} p={r} onOpen={() => onOpen(r.id)} isFav={favorites.includes(r.id)} onFav={() => onFavId(r.id)} />
@@ -1025,11 +1085,18 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
     </section>
   );
 }
+
+/* Строка характеристик на странице вещи */
 function SpecRow({ label, value }) {
-  return <div className="spec-row"><span className="spec-label">{label}</span><span className="spec-value">{value || "—"}</span></div>;
+  if (!value) return null;
+  return (
+    <div className="spec-row">
+      <span className="spec-label">{label}</span>
+      <span className="spec-value">{value}</span>
+    </div>
+  );
 }
 
-/* --------------------------- Страница корзины --------------------------- */
 function CartView({ cart, byId, onChangeQty, onRemove, onShop, onOpen, onCheckout }) {
   const items = cart.map((i) => ({ ...i, p: byId(i.id) })).filter((i) => i.p);
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
@@ -1102,19 +1169,21 @@ function FavoritesView({ products, onOpen, onFav, onShop }) {
   );
 }
 
-/* --------------------------- Оформление --------------------------- */
-function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallback }) {
+/* --------------------------- Оформление (премиум, одна страница) --------------------------- */
+function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallback, onMeta }) {
   const items = cart.map((i) => ({ ...i, p: byId(i.id) })).filter((i) => i.p);
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
-  const shipping = subtotal >= 5000 ? 0 : 390;
-  const total = subtotal + shipping;
   const [f, setF] = useState({
     name: user?.name || "", phone: user?.phone || "", city: "", address: "", pvz: "",
     delivery: "courier", pay: "sbp", comment: "",
   });
+  const shipping = f.delivery === "pickup" ? 0 : subtotal >= 5000 ? 0 : 390;
+  const total = subtotal + shipping;
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const set = (k, v) => { setF((s) => ({ ...s, [k]: v })); setErr(""); };
+
+  const orderRef = useMemo(() => "RV-" + Date.now().toString().slice(-6), []);
 
   const deliveryText = () => {
     if (f.delivery === "courier") return `Курьер, ${f.city}, ${f.address}`;
@@ -1122,31 +1191,12 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
     return "Самовывоз";
   };
 
-  const buildMessage = (ref) => {
-    const lines = items.map(({ p, ...i }) => `• ${p.name}${p.brand ? ` (${p.brand})` : ""} — размер ${i.size}, ${i.qty} шт — ${money(p.price * i.qty)}`).join("\n");
-    const payText = f.pay === "sbp"
-      ? `СБП онлайн (${settings.sbpBank}, ${settings.sbpPhone}, ${settings.sbpName})`
-      : "При получении";
-    return `Здравствуйте! Хочу оформить заказ ${ref} в ${settings.brand}.\n\n` +
-      `Товары:\n${lines}\n\n` +
-      `Сумма: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\n` +
-      `Доставка: ${deliveryText()}\n` +
-      `Оплата: ${payText}\n` +
-      (f.comment ? `Комментарий: ${f.comment}\n` : "") +
-      `\nПокупатель: ${f.name}\nТелефон: ${f.phone}`;
+  const buildMessage = () => {
+    const lines = items.map(({ p, ...i }) => `• ${p.name} — размер ${i.size}, ${i.qty} шт — ${money(p.price * i.qty)}`).join("\n");
+    const payText = f.pay === "sbp" ? `СБП (${settings.sbpBank}, ${settings.sbpPhone}, ${settings.sbpName})` : "При получении";
+    return `Здравствуйте! Заказ ${orderRef} в ${settings.brand || BRAND}.\n\n${lines}\n\nИтого: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\nДоставка: ${deliveryText()}\nОплата: ${payText}\n` +
+      (f.comment ? `Комментарий: ${f.comment}\n` : "") + `\nПокупатель: ${f.name}\nТелефон: ${f.phone}`;
   };
-
-  // ссылка на Telegram считается заранее — тогда клик открывает её мгновенно,
-  // как обычную ссылку, и мобильный браузер её не блокирует
-  const orderRef = useMemo(() => "AR-" + Date.now().toString().slice(-6), []);
-  const tgUrl = useMemo(() => {
-    const msg = buildMessage(orderRef);
-    const uname = tgUsername(settings.managerTg);
-    return uname
-      ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}`
-      : `https://t.me/share/url?url=${encodeURIComponent(settings.telegram || "https://t.me")}&text=${encodeURIComponent(msg)}`;
-    // eslint-disable-next-line
-  }, [f, items, total, shipping, settings, orderRef]);
 
   const validate = () => {
     if (!isValidName(f.name)) return "Введите настоящие имя и фамилию (например, Владимир Андреев)";
@@ -1158,12 +1208,9 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
     return "";
   };
 
-  // Клик по ссылке: если данные неверны — не пускаем. Если верны — браузер открывает
-  // Telegram, а заказ уходит в базу параллельно, не задерживая переход.
-  const handleClick = (e) => {
+  const submit = async () => {
     const problem = validate();
-    if (problem) { e.preventDefault(); setErr(problem); return; }
-    if (busy) { e.preventDefault(); return; }
+    if (problem) return setErr(problem);
     setErr(""); setBusy(true);
 
     const order = {
@@ -1175,64 +1222,82 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
       subtotal, shipping, total,
     };
 
-    onTgFallback?.(tgUrl); // запасная ссылка на экране «Заказ оформлен»
+    const uname = tgUsername(settings.managerTg);
+    const msg = buildMessage();
+    const url = uname ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}` : "";
+    onTgFallback?.(url);
+    onMeta?.({ pay: f.pay, total });
 
-    // намеренно без await: ссылка должна сработать сразу
-    Promise.resolve(onPlace(order)).then((res) => {
-      setBusy(false);
-      if (res && !res.ok) setErr(res.error);
-    });
+    const res = await onPlace(order);
+    setBusy(false);
+    if (res && !res.ok) setErr(res.error);
   };
+
+  const num = (n) => <span className="ck-num">{n}</span>;
 
   return (
     <section className="checkout">
       <button className="back-link" onClick={onBack}><ArrowLeft size={16} /> Корзина</button>
-      <h1 className="section-title">Оформление заказа</h1>
+      <div className="ck-head">
+        <h1 className="drop-title">Оформление</h1>
+        <div className="ck-ref">Заказ {orderRef}</div>
+      </div>
+
       <div className="checkout-grid">
         <div className="checkout-form">
-          <div className="form-block">
-            <h3 className="block-title">Контакты</h3>
+          <div className="ck-block">
+            <h3 className="ck-title">{num("01")} Контакты</h3>
             <div className="row-2">
-              <Field label="Имя и фамилия"><input value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Владимир Андреев" /></Field>
-              <Field label="Телефон"><input value={f.phone} onChange={(e) => set("phone", formatPhone(e.target.value))} placeholder="+7 900 000-00-00" inputMode="tel" /></Field>
+              <Field label="Имя и фамилия"><input value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Владимир Андреев" autoComplete="name" /></Field>
+              <Field label="Телефон"><input value={f.phone} onChange={(e) => set("phone", formatPhone(e.target.value))} placeholder="+7 900 000-00-00" inputMode="tel" autoComplete="tel" /></Field>
             </div>
+            <p className="ck-hint">По этому номеру менеджер подтвердит заказ.</p>
           </div>
 
-          <div className="form-block">
-            <h3 className="block-title">Доставка</h3>
-            <div className="seg seg-wide">
-              <button className={f.delivery === "courier" ? "seg-on" : ""} onClick={() => set("delivery", "courier")}>Курьер</button>
-              <button className={f.delivery === "cdek" ? "seg-on" : ""} onClick={() => set("delivery", "cdek")}>СДЭК</button>
-              <button className={f.delivery === "pickup" ? "seg-on" : ""} onClick={() => set("delivery", "pickup")}>Самовывоз</button>
+          <div className="ck-block">
+            <h3 className="ck-title">{num("02")} Доставка</h3>
+            <div className="pay-cards">
+              {[["courier", "Курьер", "1–3 дня, по адресу"], ["cdek", "СДЭК", "по всей России"], ["pickup", "Самовывоз", "по договорённости"]].map(([v, t, d]) => (
+                <button key={v} className={`pay-card ${f.delivery === v ? "on" : ""}`} onClick={() => set("delivery", v)}>
+                  <span className="pc-t">{t}</span><span className="pc-d">{d}</span>
+                </button>
+              ))}
             </div>
             {f.delivery === "courier" && (
               <div className="row-2">
-                <Field label="Город"><input value={f.city} onChange={(e) => set("city", e.target.value)} placeholder="Москва" /></Field>
-                <Field label="Адрес"><input value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Улица, дом, кв." /></Field>
+                <Field label="Город"><input value={f.city} onChange={(e) => set("city", e.target.value)} placeholder="Москва" autoComplete="address-level2" /></Field>
+                <Field label="Адрес"><input value={f.address} onChange={(e) => set("address", e.target.value)} placeholder="Улица, дом, кв." autoComplete="street-address" /></Field>
               </div>
             )}
             {f.delivery === "cdek" && (
               <div className="row-2">
                 <Field label="Город"><input value={f.city} onChange={(e) => set("city", e.target.value)} placeholder="Москва" /></Field>
-                <Field label="Пункт выдачи СДЭК"><input value={f.pvz} onChange={(e) => set("pvz", e.target.value)} placeholder="ПВЗ, адрес или код" /></Field>
+                <Field label="Пункт выдачи СДЭК"><input value={f.pvz} onChange={(e) => set("pvz", e.target.value)} placeholder="Адрес или код ПВЗ" /></Field>
               </div>
             )}
-            {f.delivery === "pickup" && <p className="pickup-note">Заказ можно забрать в магазине по адресу из раздела «О магазине». Мы сообщим о готовности.</p>}
+            {f.delivery === "pickup" && <p className="ck-hint">Менеджер согласует место и время при подтверждении заказа.</p>}
             <Field label="Комментарий (необязательно)"><textarea rows={2} value={f.comment} onChange={(e) => set("comment", e.target.value)} placeholder="Пожелания к заказу…" /></Field>
           </div>
 
-          <div className="form-block">
-            <h3 className="block-title">Оплата</h3>
-            <div className="seg seg-wide">
-              <button className={f.pay === "sbp" ? "seg-on" : ""} onClick={() => set("pay", "sbp")}>СБП онлайн</button>
-              <button className={f.pay === "cash" ? "seg-on" : ""} onClick={() => set("pay", "cash")}>При получении</button>
+          <div className="ck-block">
+            <h3 className="ck-title">{num("03")} Оплата</h3>
+            <div className="pay-cards">
+              <button className={`pay-card ${f.pay === "sbp" ? "on" : ""}`} onClick={() => set("pay", "sbp")}>
+                <span className="pc-t">СБП</span><span className="pc-d">перевод после подтверждения</span>
+              </button>
+              <button className={`pay-card ${f.pay === "cash" ? "on" : ""}`} onClick={() => set("pay", "cash")}>
+                <span className="pc-t">При получении</span><span className="pc-d">наличными или переводом</span>
+              </button>
+              <button className="pay-card pay-soon" disabled>
+                <span className="pc-t">Картой онлайн</span><span className="pc-d">скоро</span>
+              </button>
             </div>
             {f.pay === "sbp" && (
               <div className="sbp-block">
                 <div className="sbp-row"><span>Банк</span><b>{settings.sbpBank}</b></div>
-                <div className="sbp-row"><span>Номер для перевода</span><b>{settings.sbpPhone}</b></div>
+                <div className="sbp-row"><span>Номер</span><b>{settings.sbpPhone}</b></div>
                 <div className="sbp-row"><span>Получатель</span><b>{settings.sbpName}</b></div>
-                <p className="sbp-note">Переведите {money(total)} по СБП на этот номер. После оформления откроется чат с менеджером в Telegram — отправьте готовое сообщение, менеджер подтвердит оплату и заказ.</p>
+                <p className="sbp-note">Реквизиты продублируются после оформления. Переводите после того, как менеджер подтвердит наличие.</p>
               </div>
             )}
           </div>
@@ -1240,11 +1305,15 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
 
         <aside className="summary">
           <h2 className="summary-title">Ваш заказ</h2>
-          <div className="checkout-items">
+          <div className="ck-items">
             {items.map(({ p, ...i }) => (
-              <div className="checkout-line" key={i.key}>
-                <span className="cl-name">{p.name} <span className="cl-qty">×{i.qty}</span><br /><span className="cl-size">{i.size}</span></span>
-                <span className="cl-price">{money(p.price * i.qty)}</span>
+              <div className="ck-item" key={i.key}>
+                <div className="ck-thumb"><Media p={p} img={getGallery(p)[0]} /></div>
+                <div className="ck-item-info">
+                  <div className="ck-item-name">{p.name}</div>
+                  <div className="ck-item-meta">{i.size} · ×{i.qty}</div>
+                </div>
+                <div className="ck-item-price">{money(p.price * i.qty)}</div>
               </div>
             ))}
           </div>
@@ -1252,11 +1321,13 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
           <div className="sum-row"><span>Доставка</span><span>{shipping === 0 ? "Бесплатно" : money(shipping)}</span></div>
           <div className="sum-row total"><span>К оплате</span><span className="total-sum">{money(total)}</span></div>
           {err && <div className="login-err">{err}</div>}
-          <a className={`btn-primary btn-block checkout-link ${busy ? "is-busy" : ""}`}
-             href={tgUrl} target="_blank" rel="noreferrer" onClick={handleClick}>
-            <Send size={16} /> {busy ? "Оформляем…" : "Оформить и написать менеджеру"}
-          </a>
-          <p className="summary-note">Откроется Telegram с готовым сообщением о заказе.</p>
+          <button className="btn-primary btn-block" onClick={submit} disabled={busy}>
+            {busy ? "Оформляем…" : "Оформить заказ"}
+          </button>
+          <p className="summary-note">После оформления мы свяжемся с вами для подтверждения заказа.</p>
+          <div className="p-promise ck-promise">
+            <span>Ручной отбор</span><i>·</i><span>Возврат 14 дней</span><i>·</i><span>Без логомании</span>
+          </div>
         </aside>
       </div>
     </section>
@@ -1264,29 +1335,62 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
 }
 
 /* --------------------------- Заказ принят --------------------------- */
-function SuccessView({ brand, orderId, canTrack, tgLink, onOrders, onShop }) {
+function CopyBtn({ text }) {
+  const [ok, setOk] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1600); }
+    catch (e) { /* без буфера — не страшно */ }
+  };
+  return <button className={`copy-btn ${ok ? "ok" : ""}`} onClick={copy}>{ok ? "Скопировано" : "Копировать"}</button>;
+}
+
+function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOrders, onShop }) {
+  const sbp = payMeta?.pay === "sbp";
+  const steps = ["Заказ принят", "Подтверждение", sbp ? "Оплата по СБП" : "Оплата", "Отправка"];
   return (
     <section className="success">
       <div className="success-icon"><Check size={34} /></div>
-      <h1 className="success-title">Заказ оформлен</h1>
+      <h1 className="success-title">Заказ принят</h1>
       {orderId && <div className="success-order">Номер заказа: <b>{orderId}</b></div>}
+
+      <div className="order-steps" aria-label="Статус заказа">
+        {steps.map((t, i) => (
+          <div key={t} className={`ostep ${i === 0 ? "done" : i === 1 ? "now" : ""}`}>
+            <span className="ostep-dot">{i === 0 ? <Check size={11} /> : i + 1}</span>
+            <span className="ostep-t">{t}</span>
+            {i < steps.length - 1 && <span className="ostep-line" />}
+          </div>
+        ))}
+      </div>
+
       <p className="success-sub">
-        Спасибо за покупку в {brand}. В Telegram открылось готовое сообщение — отправьте его менеджеру,
-        чтобы подтвердить оплату и доставку. Статус заказа виден в личном кабинете.
+        Спасибо за заказ в {brand}. <b>Мы свяжемся с вами для подтверждения</b> — обычно в течение часа,
+        держите телефон под рукой.{sbp ? " После подтверждения переведите оплату по СБП:" : ""}
       </p>
+
+      {sbp && settings && (
+        <div className="sbp-block success-sbp">
+          <div className="sbp-row"><span>Банк</span><b>{settings.sbpBank}</b></div>
+          <div className="sbp-row"><span>Номер</span><span className="sbp-copy"><b>{settings.sbpPhone}</b><CopyBtn text={settings.sbpPhone} /></span></div>
+          <div className="sbp-row"><span>Получатель</span><b>{settings.sbpName}</b></div>
+          {payMeta?.total ? <div className="sbp-row"><span>Сумма</span><span className="sbp-copy"><b>{money(payMeta.total)}</b><CopyBtn text={String(payMeta.total)} /></span></div> : null}
+        </div>
+      )}
+
       {tgLink && (
         <a className="tg-cta-big" href={tgLink} target="_blank" rel="noreferrer">
           <span className="tg-cta-icon"><Send size={20} /></span>
           <span className="tg-cta-text">
-            <b>Telegram не открылся?</b>
-            <span>Нажмите — сообщение о заказе уже готово</span>
+            <b>Ускорить подтверждение</b>
+            <span>Написать менеджеру в Telegram — сообщение уже готово</span>
           </span>
           <ArrowRight size={18} />
         </a>
       )}
+
       <div className="success-actions">
-        {canTrack && <button className={tgLink ? "btn-ghost" : "btn-primary"} onClick={onOrders}>Мои заказы</button>}
-        <button className={canTrack || tgLink ? "btn-ghost" : "btn-primary"} onClick={onShop}>Вернуться в магазин</button>
+        {canTrack && <button className="btn-ghost" onClick={onOrders}>Мои заказы</button>}
+        <button className="btn-ghost" onClick={onShop}>Вернуться к дропу</button>
       </div>
     </section>
   );
@@ -1924,6 +2028,9 @@ function Footer({ settings, onNav, onInfo, onAdmin, isAdmin, user }) {
   const accLabel = isAdmin ? "Админ-панель" : user ? "Мой аккаунт" : "Вход / регистрация";
   return (
     <footer className="footer">
+      <div className="footer-mark" aria-hidden="true">
+        <span className="wm"><span className="wm-letters-static footer-wm">ROVELLE</span><span className="wm-line" /></span>
+      </div>
       <div className="footer-cols">
         <div className="footer-brand-col">
           <div className="footer-brand">{s.brand}</div>
@@ -2673,6 +2780,97 @@ html{scroll-behavior:smooth}
 .faq-item.open .faq-a{grid-template-rows:1fr}
 .faq-a p{overflow:hidden;color:var(--ink-soft);font-size:14.5px;line-height:1.7;padding:0 4px}
 .faq-item.open .faq-a p{padding-bottom:22px}
+
+/* сменяющееся слово */
+.rot-word{display:inline-block;color:var(--accent);animation:rotword .5s cubic-bezier(.2,.7,.2,1)}
+@keyframes rotword{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* манифест среди вещей */
+.manifesto-card-wrap{margin:-20px 0}
+.manifesto-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:52px 20px;display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center}
+.manifesto-card p{font-family:var(--serif);font-size:clamp(21px,3vw,29px);line-height:1.4;font-style:italic;color:var(--ink)}
+
+/* пульс бейджа корзины */
+.badge-pop{animation:badgepop .45s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes badgepop{0%{transform:scale(.4)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+
+/* страница вещи */
+.p-top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.p-crumb{font-size:13px;color:var(--ink-soft);display:inline-flex;align-items:center;gap:10px}
+.p-crumb b{font-family:var(--serif);font-size:17px;color:var(--accent)}
+.p-crumb-nav{display:inline-flex;gap:6px;margin-left:4px}
+.p-crumb-nav button{width:30px;height:30px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;color:var(--ink);transition:all .2s}
+.p-crumb-nav button:hover:not(:disabled){border-color:var(--ink);transform:translateX(0) scale(1.06)}
+.p-crumb-nav button:disabled{opacity:.3;cursor:default}
+.main-img{position:relative}
+.main-img-frame{width:100%;height:100%;animation:imgfade .45s ease}
+@keyframes imgfade{from{opacity:0;transform:scale(1.015)}to{opacity:1;transform:none}}
+.gallery{position:sticky;top:86px;align-self:start}
+@media(max-width:900px){.gallery{position:static}}
+.avail-dot{font-size:12px;letter-spacing:.05em;padding:4px 11px;border-radius:100px;margin-left:6px;white-space:nowrap}
+.avail-dot.in{background:rgba(74,107,82,.12);color:#3f5c47}
+.avail-dot.low{background:rgba(176,120,40,.14);color:#8a5a1a}
+.avail-dot.out{background:rgba(124,38,52,.1);color:var(--accent)}
+.p-story{border-left:2px solid var(--accent);padding:4px 0 4px 18px;margin:20px 0 18px}
+.p-story-label{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.p-story p{color:var(--ink-soft);font-size:15px;line-height:1.75}
+.p-fabrics{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.p-fabrics span{border:1px solid var(--line);background:var(--card);border-radius:100px;padding:6px 14px;font-size:12.5px;color:var(--ink-soft)}
+.btn-cta .cta-price{opacity:.75;font-weight:400}
+.p-promise{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink-soft);margin:22px 0 4px}
+.p-promise i{font-style:normal;color:var(--accent)}
+.product .related{margin-top:80px;padding-top:46px;border-top:1px solid var(--line)}
+
+/* большой знак в подвале */
+.footer-mark{display:flex;justify-content:center;padding:8px 20px 40px}
+.footer-wm{font-size:clamp(26px,4.4vw,40px);color:var(--paper);opacity:.92}
+.footer-mark .wm-line{background:var(--paper);opacity:.35}
+
+/* оформление — премиум */
+.ck-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:34px}
+.ck-ref{font-size:13px;color:var(--ink-soft);letter-spacing:.06em}
+.ck-block{border:1px solid var(--line);border-radius:8px;background:var(--card);padding:26px 26px 20px;margin-bottom:18px}
+.ck-title{display:flex;align-items:baseline;gap:12px;font-family:var(--serif);font-weight:500;font-size:20px;margin-bottom:18px}
+.ck-num{font-family:var(--serif);font-size:15px;color:var(--accent)}
+.ck-hint{font-size:12.5px;color:var(--ink-soft);margin:4px 0 14px}
+.pay-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+@media(max-width:560px){.pay-cards{grid-template-columns:1fr}}
+.pay-card{border:1px solid var(--line);border-radius:6px;background:var(--paper);padding:14px;display:flex;flex-direction:column;gap:4px;text-align:left;transition:border-color .2s,box-shadow .2s;cursor:pointer}
+.pay-card:hover:not(:disabled){border-color:var(--ink)}
+.pay-card.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.pay-card:disabled{cursor:default}
+.pc-t{font-weight:600;font-size:14px}
+.pc-d{font-size:12px;color:var(--ink-soft)}
+.pay-soon{opacity:.55;position:relative}
+.pay-soon .pc-d{color:var(--accent)}
+.ck-items{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+.ck-item{display:flex;align-items:center;gap:12px}
+.ck-thumb{width:54px;height:54px;border-radius:4px;overflow:hidden;background:#fff;flex-shrink:0;border:1px solid var(--line)}
+.ck-item-info{flex:1;min-width:0}
+.ck-item-name{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ck-item-meta{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.ck-item-price{font-size:13.5px;white-space:nowrap}
+.ck-promise{justify-content:center;margin-top:16px}
+.success-sbp{max-width:360px;margin:0 auto 26px;text-align:left}
+
+/* таймлайн заказа */
+.order-steps{display:flex;justify-content:center;gap:0;margin:26px auto 6px;flex-wrap:wrap;max-width:560px}
+.ostep{display:flex;align-items:center;gap:8px;position:relative;padding:6px 0}
+.ostep-dot{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line);display:grid;place-items:center;font-size:11px;color:var(--ink-soft);background:var(--paper);flex-shrink:0}
+.ostep.done .ostep-dot{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.ostep.now .ostep-dot{border-color:var(--accent);color:var(--accent);animation:pulse 2s ease infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(124,38,52,.25)}50%{box-shadow:0 0 0 6px rgba(124,38,52,0)}}
+.ostep-t{font-size:12px;color:var(--ink-soft);white-space:nowrap}
+.ostep.done .ostep-t,.ostep.now .ostep-t{color:var(--ink)}
+.ostep-line{width:34px;height:1px;background:var(--line);margin:0 10px}
+@media(max-width:560px){.ostep-line{width:14px;margin:0 6px}.ostep-t{font-size:11px}}
+
+/* копирование реквизитов */
+.sbp-copy{display:inline-flex;align-items:center;gap:10px}
+.copy-btn{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);border:1px solid var(--line);border-radius:100px;padding:5px 12px;transition:all .2s;white-space:nowrap}
+.copy-btn:hover{border-color:var(--accent)}
+.copy-btn.ok{background:var(--accent);color:#fff;border-color:var(--accent)}
+.success-sbp{max-width:420px;margin:20px auto 6px;text-align:left}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
