@@ -61,7 +61,6 @@ const DEFAULT_SETTINGS = {
   line1Desc: "Винтаж, архивные мотивы и Стокгольм. Вещи с историей — для тех, кто экспериментирует.",
   line2Name: "Quiet Luxe",
   line2Desc: "Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.",
-  craftTitle: "Дрип — это детали, а не принт",
   luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
   manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
   phone: "+7 900 000-00-00",
@@ -296,6 +295,8 @@ function Store() {
     const hash = v === "catalog" ? "#/" : v === "product" ? `#/product/${id}` : `#/${v}`;
     if (window.location.hash !== hash) window.history.pushState(null, "", hash);
     setView(v); setFade(true); window.scrollTo({ top: 0 });
+    // засчитываем переход в Яндекс.Метрике (SPA hit)
+    try { if (window.ym) window.ym(window.__ym_id, "hit", hash); } catch (e) {}
   };
   const openProduct = (id) => { setSelectedId(id); go("product", id); };
   const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("catalog"); };
@@ -449,8 +450,7 @@ function Store() {
   }
 
   const accountTarget = isAdmin ? "admin" : user ? "account" : "login";
-  const themeClass =
-    view === "catalog" && activeCat === "Quiet Luxe" ? "theme-luxe" : "theme-heritage";
+  const themeClass = activeCat === "Quiet Luxe" ? "theme-luxe" : "theme-heritage";
 
   return (
     <div className={`store ${themeClass}`}>
@@ -553,7 +553,7 @@ function Header({ brand, logo, cartCount, favCount, isAdmin, onLogo, onCart, onN
     <header className="header">
       <button className="icon-btn only-mobile" aria-label="Меню" onClick={onMenu}><Menu size={20} /></button>
       <nav className="nav only-desktop">
-        {SHOP_CATS.map((c) => <button key={c} className="nav-link" onClick={() => onNav(c)}>{c}</button>)}
+        {SHOP_CATS.map((c) => <button key={c} className="nav-link" onClick={() => onNav(c)}>{LINE_SHORT[c] || c}</button>)}
         {isAdmin && <button className="nav-link nav-admin" onClick={onAccount}>Админ</button>}
       </nav>
       <button className="wordmark" onClick={onLogo} aria-label={brand}>
@@ -1322,7 +1322,7 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
 
           <div className="add-row">
             <button className="btn-primary btn-block btn-cta" onClick={handleAdd} disabled={soldOut || maxedOut}>
-              {soldOut ? "Нет в наличии" : maxedOut ? "Всё в корзине" : added ? <><Check size={16} /> Добавлено</> : <>Добавить в корзину <span className="cta-price">· {money(p.price)}</span></>}
+              {soldOut ? "Нет в наличии" : maxedOut ? "Всё в корзине" : added ? <><Check size={16} /> Добавлено</> : "Добавить в корзину"}
             </button>
             <button className={`fav-btn ${isFav ? "fav-on" : ""}`} onClick={onFav} aria-label="В избранное" title="В избранное">
               <Heart size={18} fill={isFav ? "currentColor" : "none"} />
@@ -1374,16 +1374,6 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
 }
 
 /* Строка характеристик на странице вещи */
-function SpecRow({ label, value }) {
-  if (!value) return null;
-  return (
-    <div className="spec-row">
-      <span className="spec-label">{label}</span>
-      <span className="spec-value">{value}</span>
-    </div>
-  );
-}
-
 function CartView({ cart, byId, onChangeQty, onRemove, onShop, onOpen, onCheckout }) {
   const items = cart.map((i) => ({ ...i, p: byId(i.id) })).filter((i) => i.p);
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
@@ -2177,7 +2167,6 @@ function SettingsForm({ settings, onSave, onCancel }) {
           </div>
           <Field label="Линия 1 — описание"><textarea rows={2} value={f.line1Desc} onChange={(e) => set("line1Desc", e.target.value)} /></Field>
           <Field label="Линия 2 — описание"><textarea rows={2} value={f.line2Desc} onChange={(e) => set("line2Desc", e.target.value)} /></Field>
-          <Field label="Заголовок блока «Детали»"><input value={f.craftTitle} onChange={(e) => set("craftTitle", e.target.value)} /></Field>
           <Field label="Текст тизера Quiet Luxe"><textarea rows={3} value={f.luxeText} onChange={(e) => set("luxeText", e.target.value)} /></Field>
           <Field label="Манифест (2 строки)"><textarea rows={2} value={f.manifesto} onChange={(e) => set("manifesto", e.target.value)} placeholder={"Мы не печатаем логотипы.\nМы прошиваем историю."} /></Field>
         </div>
@@ -2695,10 +2684,10 @@ const css = `
 .size-active{background:var(--ink);color:var(--paper);border-color:var(--ink);box-shadow:0 6px 16px rgba(26,22,19,.18)}
 .size-chip:disabled{cursor:default;background:var(--card)}
 .add-row{display:flex;gap:10px;margin-bottom:34px}.add-row .btn-primary{flex:1}
-.specs{border-top:1px solid var(--line)}
-.spec-row{display:flex;gap:20px;padding:15px 0;border-bottom:1px solid var(--line)}
-.spec-label{width:110px;flex-shrink:0;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
-.spec-value{font-size:14px;line-height:1.5}
+
+
+
+
 
 .cart-page{max-width:1120px;margin:0 auto;padding:40px 32px 90px}
 @media(max-width:760px){.cart-page{padding:28px 20px 70px}}
@@ -3306,7 +3295,6 @@ html{scroll-behavior:smooth}
 .avail-dot.out{background:rgba(124,38,52,.1);color:var(--accent)}
 .p-fabrics{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
 .p-fabrics span{border:1px solid var(--line);background:var(--card);border-radius:100px;padding:6px 14px;font-size:12.5px;color:var(--ink-soft)}
-.btn-cta .cta-price{opacity:1;font-weight:500;margin-left:2px}
 .p-promise{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink-soft);margin:22px 0 4px}
 .p-promise i{font-style:normal;color:var(--accent)}
 .product .related{margin-top:80px;padding-top:46px;border-top:1px solid var(--line)}
@@ -3408,8 +3396,8 @@ html{scroll-behavior:smooth}
 
   /* заголовки секций ровнее */
   .drop-head{margin-bottom:32px}
-  .drop-tools{width:100%}
-  .line-tabs{width:100%;overflow-x:auto;justify-content:flex-start}
+  .drop-tools{width:100%;flex-direction:column;align-items:stretch;gap:10px}
+  .line-tabs{width:auto;align-self:flex-start;max-width:100%;overflow-x:auto;justify-content:flex-start}
   .search-wrap{width:100%}
   .search-wrap input{width:100%}
 
