@@ -450,11 +450,7 @@ function Store() {
 
   const accountTarget = isAdmin ? "admin" : user ? "account" : "login";
   const themeClass =
-    view === "catalog" && activeCat === "Quiet Luxe" ? "theme-luxe"
-    : view === "catalog" && activeCat === "Heritage" ? "theme-heritage"
-    : view === "catalog" && activeCat === "Archive" ? "theme-heritage"
-    : view === "catalog" ? "theme-heritage"
-    : "";
+    view === "catalog" && activeCat === "Quiet Luxe" ? "theme-luxe" : "theme-heritage";
 
   return (
     <div className={`store ${themeClass}`}>
@@ -527,7 +523,7 @@ function Store() {
       {view === "success" && <SuccessView brand={BRAND} orderId={lastOrderId} canTrack={!!user} tgLink={tgFallback} payMeta={payMeta} settings={settings} onOrders={() => go("orders")} onShop={() => { setTgFallback(""); setPayMeta(null); openCatalog("Всё"); }} />}
       {view === "orders" && (
         user
-          ? <OrdersView orders={orders.filter((o) => o.userId === user.id)} onShop={() => openCatalog("Всё")} onBack={() => go("account")} />
+          ? <OrdersView orders={orders.filter((o) => o.userId === user.id)} onShop={() => openCatalog("Всё")} onBack={() => go("account")} onCancel={(id) => updateOrderStatus(id, "Отменён")} />
           : <AuthView onLogin={login} onRegister={register} onBack={() => openCatalog("Всё")} />
       )}
       {view === "account" && (
@@ -979,15 +975,6 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
           <h2 className="drop-title" style={{ marginBottom: 34 }}>Вопросы и ответы</h2>
         </Reveal>
         <Reveal delay={120}><FAQ /></Reveal>
-      </section>
-
-      {/* ---------- Философия ---------- */}
-      <section className="philosophy">
-        <Reveal>
-          <div className="hero-eyebrow">{settings.philosophyTitle}</div>
-          <p className="philosophy-text">{settings.philosophyText}</p>
-          <button className="btn-ghost" onClick={onInfo}>Подробнее о бренде <ArrowRight size={15} /></button>
-        </Reveal>
       </section>
     </>
   );
@@ -1814,7 +1801,9 @@ function AccountView({ user, favCount, cartCount, ordersCount, onFavs, onCart, o
 /* ------------------------------- Мои заказы ------------------------------- */
 const statusClass = (s) => s === "Доставлен" ? "st-done" : s === "Отменён" ? "st-cancel" : s === "Обработка" ? "st-wait" : "st-progress";
 
-function OrdersView({ orders, onShop, onBack }) {
+function OrdersView({ orders, onShop, onBack, onCancel }) {
+  const [confirming, setConfirming] = useState(null);
+  const canCancel = (s) => s === "Обработка" || s === "Подтверждён";
   return (
     <section className="orders-page">
       <button className="back-link" onClick={onBack}><ArrowLeft size={16} /> В кабинет</button>
@@ -1841,10 +1830,129 @@ function OrdersView({ orders, onShop, onBack }) {
                   <span className="order-delivery">{DELIVERY_LABELS[o.delivery.method] || o.delivery.method} · {PAY_LABELS[o.payment.method]}</span>
                   <span className="order-total">{money(o.total)}</span>
                 </div>
+                {canCancel(o.status) && (
+                  confirming === o.id ? (
+                    <div className="order-cancel-confirm">
+                      <span>Отозвать заявку?</span>
+                      <button className="btn-danger sm" onClick={() => { onCancel(o.id); setConfirming(null); }}>Да, отозвать</button>
+                      <button className="btn-ghost sm" onClick={() => setConfirming(null)}>Нет</button>
+                    </div>
+                  ) : (
+                    <button className="order-cancel-btn" onClick={() => setConfirming(o.id)}>Отозвать заявку</button>
+                  )
+                )}
+                {o.status === "Отменён" && <div className="order-cancelled-note">Заявка отозвана</div>}
               </div>
             ))}
           </div>}
     </section>
+  );
+}
+
+/* --------------------------- Аналитика (админ) --------------------------- */
+function AdminAnalytics({ orders, products }) {
+  const paid = orders.filter((o) => o.status !== "Отменён");
+  const revenue = paid.reduce((s, o) => s + o.total, 0);
+  const avgCheck = paid.length ? Math.round(revenue / paid.length) : 0;
+  const customers = new Set(paid.map((o) => o.userId || o.customer?.phone).filter(Boolean)).size;
+  const cancelled = orders.filter((o) => o.status === "Отменён").length;
+  const pending = orders.filter((o) => o.status === "Обработка").length;
+  const unitsSold = paid.reduce((s, o) => s + o.items.reduce((a, i) => a + i.qty, 0), 0);
+  const stockLeft = products.reduce((s, p) => s + (p.stock || 0), 0);
+
+  // выручка по месяцам (последние 6)
+  const now = new Date();
+  const months = [];
+  for (let k = 5; k >= 0; k--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+    months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString("ru-RU", { month: "short" }), sum: 0, count: 0 });
+  }
+  paid.forEach((o) => {
+    const d = new Date(o.createdAt);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const m = months.find((x) => x.key === key);
+    if (m) { m.sum += o.total; m.count += 1; }
+  });
+  const maxSum = Math.max(1, ...months.map((m) => m.sum));
+
+  // статусы заказов
+  const statusCounts = ORDER_STATUSES.map((st) => ({ st, n: orders.filter((o) => o.status === st).length })).filter((x) => x.n > 0);
+  const maxStatus = Math.max(1, ...statusCounts.map((x) => x.n));
+
+  // топ товаров по продажам
+  const soldMap = {};
+  paid.forEach((o) => o.items.forEach((i) => { soldMap[i.name] = (soldMap[i.name] || 0) + i.qty; }));
+  const topProducts = Object.entries(soldMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxTop = Math.max(1, ...topProducts.map(([, n]) => n));
+
+  const cards = [
+    ["Выручка", money(revenue), "за всё время"],
+    ["Заказов", String(paid.length), pending ? `${pending} в обработке` : "все обработаны"],
+    ["Покупателей", String(customers), "уникальных"],
+    ["Средний чек", money(avgCheck), "на заказ"],
+    ["Продано вещей", String(unitsSold), "штук"],
+    ["Остаток на складе", String(stockLeft), "штук"],
+    ["Отменено", String(cancelled), "заявок"],
+    ["Позиций в каталоге", String(products.length), "товаров"],
+  ];
+
+  return (
+    <div className="analytics">
+      <div className="an-cards">
+        {cards.map(([label, val, sub]) => (
+          <div className="an-card" key={label}>
+            <div className="an-val">{val}</div>
+            <div className="an-label">{label}</div>
+            <div className="an-sub">{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="an-charts">
+        <div className="an-chart">
+          <h3 className="an-chart-title">Выручка по месяцам</h3>
+          <div className="an-bars">
+            {months.map((m) => (
+              <div className="an-bar-col" key={m.key}>
+                <div className="an-bar-wrap">
+                  <div className="an-bar-val">{m.sum > 0 ? money(m.sum).replace(" ₽", "") : ""}</div>
+                  <div className="an-bar" style={{ height: `${Math.round((m.sum / maxSum) * 100)}%` }} />
+                </div>
+                <div className="an-bar-label">{m.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="an-chart">
+          <h3 className="an-chart-title">Заказы по статусам</h3>
+          <div className="an-rows">
+            {statusCounts.length === 0 ? <p className="an-empty">Пока нет заказов</p> : statusCounts.map(({ st, n }) => (
+              <div className="an-row" key={st}>
+                <span className="an-row-label">{st}</span>
+                <div className="an-row-track"><div className="an-row-fill" style={{ width: `${Math.round((n / maxStatus) * 100)}%` }} /></div>
+                <span className="an-row-n">{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="an-chart an-chart-wide">
+          <h3 className="an-chart-title">Топ товаров по продажам</h3>
+          <div className="an-rows">
+            {topProducts.length === 0 ? <p className="an-empty">Пока нет продаж</p> : topProducts.map(([name, n]) => (
+              <div className="an-row" key={name}>
+                <span className="an-row-label">{name}</span>
+                <div className="an-row-track"><div className="an-row-fill gold" style={{ width: `${Math.round((n / maxTop) * 100)}%` }} /></div>
+                <span className="an-row-n">{n} шт</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="an-note">Данные считаются по реальным заказам из базы. Отменённые заявки не входят в выручку.</p>
+    </div>
   );
 }
 
@@ -1880,6 +1988,7 @@ function AdminView({ products, settings, orders, onAdd, onUpdate, onDelete, onLo
     <section className="admin">
       <div className="admin-tabbar">
         <div className="admin-tabs">
+          <button className={tab === "analytics" ? "atab on" : "atab"} onClick={() => setTab("analytics")}>Аналитика</button>
           <button className={tab === "products" ? "atab on" : "atab"} onClick={() => setTab("products")}>Товары</button>
           <button className={tab === "orders" ? "atab on" : "atab"} onClick={() => setTab("orders")}>
             Заказы{pendingOrders > 0 && <span className="tab-badge">{pendingOrders}</span>}
@@ -1888,6 +1997,8 @@ function AdminView({ products, settings, orders, onAdd, onUpdate, onDelete, onLo
         </div>
         <button className="btn-ghost admin-logout" onClick={onLogout}><LogOut size={15} /> Выйти</button>
       </div>
+
+      {tab === "analytics" && <AdminAnalytics orders={orders} products={products} />}
 
       {tab === "products" && (
         <>
@@ -3486,6 +3597,42 @@ html{scroll-behavior:smooth}
 .acc-mat img{width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
 .acc-mat span{font-size:14px;color:var(--ink)}
 .acc-care{margin-top:4px;font-size:13px;color:var(--ink-soft);line-height:1.6}
+
+/* отзыв заявки покупателем */
+.order-cancel-btn{margin-top:12px;font-size:13px;color:var(--ink-soft);border:1px solid var(--line);border-radius:8px;padding:8px 16px;transition:all .2s}
+.order-cancel-btn:hover{border-color:var(--accent);color:var(--accent)}
+.order-cancel-confirm{margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--ink)}
+.order-cancelled-note{margin-top:12px;font-size:13px;color:var(--accent)}
+.btn-danger.sm,.btn-ghost.sm{padding:7px 14px;font-size:12px;border-radius:8px}
+
+/* аналитика */
+.analytics{animation:fade .3s ease}
+.an-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:26px}
+@media(max-width:900px){.an-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.an-card{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:20px}
+.an-val{font-family:var(--serif);font-size:26px;color:var(--ink);line-height:1.1}
+.an-label{font-size:13px;color:var(--ink);margin-top:6px}
+.an-sub{font-size:11px;color:var(--ink-soft);margin-top:2px}
+.an-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.an-charts{grid-template-columns:1fr}}
+.an-chart{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:22px}
+.an-chart-wide{grid-column:1/-1}
+.an-chart-title{font-family:var(--serif);font-weight:400;font-size:18px;margin-bottom:20px}
+.an-bars{display:flex;align-items:flex-end;gap:10px;height:180px}
+.an-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%}
+.an-bar-wrap{flex:1;width:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px}
+.an-bar-val{font-size:10px;color:var(--ink-soft);white-space:nowrap}
+.an-bar{width:100%;max-width:46px;background:linear-gradient(var(--accent),color-mix(in srgb,var(--accent) 60%,transparent));border-radius:6px 6px 0 0;min-height:3px;transition:height .6s cubic-bezier(.2,.7,.2,1)}
+.an-bar-label{font-size:12px;color:var(--ink-soft);margin-top:8px;text-transform:capitalize}
+.an-rows{display:flex;flex-direction:column;gap:12px}
+.an-row{display:flex;align-items:center;gap:12px}
+.an-row-label{font-size:13px;color:var(--ink);width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-row-track{flex:1;height:10px;background:var(--paper);border-radius:100px;overflow:hidden}
+.an-row-fill{height:100%;background:var(--accent);border-radius:100px;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.an-row-fill.gold{background:#c99a6b}
+.an-row-n{font-size:13px;color:var(--ink-soft);width:56px;text-align:right;flex-shrink:0}
+.an-empty{font-size:13px;color:var(--ink-soft)}
+.an-note{margin-top:18px;font-size:12px;color:var(--ink-soft)}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
