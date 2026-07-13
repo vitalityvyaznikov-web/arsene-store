@@ -35,6 +35,7 @@ const normalizeProduct = (p = {}) => ({
   price: Number(p.price) || 0,
   oldPrice: Number(p.oldPrice) || 0,
   material: p.material || "",
+  materials: Array.isArray(p.materials) ? p.materials : [],
   care: p.care || "",
   desc: p.desc || "",
   highlights: p.highlights || "",
@@ -869,7 +870,22 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
                     <h3 className="piece-name">{p.name}</h3>
                     <div className="piece-meta">{LINE_LABELS[p.cat] || p.cat} · {typeLabel(p.type)}</div>
                     <p className="piece-desc">{p.desc}</p>
-                    {p.material && (
+                    {(p.materials && p.materials.length > 0) ? (
+                      <div className="piece-mats">
+                        {p.materials.map((m, mi) => (
+                          <div className="piece-material" key={mi}>
+                            <div className="pm-swatch">
+                              {m.photo ? <img src={imgThumb(m.photo)} alt={m.name} loading="lazy" />
+                                : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
+                            </div>
+                            <div className="pm-text">
+                              <span className="pm-label">Материал</span>
+                              <span className="pm-value">{m.name}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : p.material && (
                       <div className="piece-material">
                         <div className="pm-swatch">
                           {getGallery(p).length > 1
@@ -921,7 +937,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
       {/* ---------- Что мы проверяем ---------- */}
       <section className="craft">
-        <Reveal><h2 className="craft-title">{settings.craftTitle || "Дрип — это детали, а не принт"}</h2></Reveal>
+        <Reveal><h2 className="craft-title">{settings.philosophyText || "Мы отбираем каждую вещь вручную — за фактуру, крой и историю, а не за логотип."}</h2></Reveal>
         <div className="craft-grid">
           {[
             ["01", "Швы и фактуры", "Архивные стирки, честный деним, необычные обработки. Вещь интересно рассматривать вблизи."],
@@ -1143,7 +1159,21 @@ function Lightbox({ images, index, p, onClose, onIndex }) {
 function ProductAccordion({ p }) {
   const [open, setOpen] = useState("care");
   const rows = [];
-  if (p.material) rows.push(["care", "Состав и уход", <>{p.material}{p.care ? <><br />{p.care}</> : <><br />Бережная стирка, сушить в расправленном виде.</>}</>]);
+  const hasMats = p.materials && p.materials.length > 0;
+  const careContent = hasMats ? (
+    <div className="acc-mats">
+      {p.materials.map((m, i) => (
+        <div className="acc-mat" key={i}>
+          {m.photo && <img src={imgThumb(m.photo)} alt={m.name} loading="lazy" />}
+          <span>{m.name}</span>
+        </div>
+      ))}
+      <div className="acc-care">{p.care || "Бережная стирка, сушить в расправленном виде."}</div>
+    </div>
+  ) : p.material ? (
+    <>{p.material}{p.care ? <><br />{p.care}</> : <><br />Бережная стирка, сушить в расправленном виде.</>}</>
+  ) : null;
+  if (careContent) rows.push(["care", "Состав и уход", careContent]);
   rows.push(["fit", "Размер и посадка", p.fit || "Классическая посадка. Между размерами выбирайте меньший для чёткого силуэта."]);
   rows.push(["ship", "Доставка и возврат", <>{p.delivery}, бесплатно от 5 000 ₽. Возврат в течение 14 дней.</>]);
 
@@ -2141,6 +2171,7 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
   const [f, setF] = useState(() => ({
     name: initial?.name || "", brand: initial?.brand || "", cat: initial?.cat || "Archive", type: initial?.type || "jeans",
     price: initial?.price || "", oldPrice: initial?.oldPrice || "", material: initial?.material || "",
+    materials: initial?.materials?.length ? initial.materials.map((m) => ({ ...m })) : [],
     care: initial?.care || "", desc: initial?.desc || "", highlights: initial?.highlights || "", fit: initial?.fit || "", tag: initial?.tag || "",
     stock: initial?.stock ?? 10, delivery: initial?.delivery || "1–3 дня по России",
     sizes: initial?.sizes ? [...initial.sizes] : ["S", "M", "L"],
@@ -2151,6 +2182,7 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
   const [err, setErr] = useState("");
   const [newType, setNewType] = useState("");
   const [addingType, setAddingType] = useState(false);
+  const [matBusy, setMatBusy] = useState(-1);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
   // при смене типа на обувной подставляем числовые размеры (и наоборот)
@@ -2195,7 +2227,10 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
     setErr("");
     onSave({
       name: f.name.trim(), brand: f.brand.trim(), cat: f.cat, type: f.type, price: Number(f.price),
-      oldPrice: f.oldPrice ? Number(f.oldPrice) : 0, material: f.material.trim(), care: f.care.trim(),
+      oldPrice: f.oldPrice ? Number(f.oldPrice) : 0,
+      materials: (f.materials || []).filter((m) => (m.name || "").trim()).map((m) => ({ name: m.name.trim(), photo: m.photo || "" })),
+      material: (f.materials || []).filter((m) => (m.name || "").trim()).map((m) => m.name.trim()).join(", ") || f.material.trim(),
+      care: f.care.trim(),
       desc: f.desc.trim(), highlights: f.highlights.trim(), fit: f.fit.trim(), tag: f.tag.trim() || undefined,
       stock: Math.max(0, parseInt(f.stock, 10) || 0), delivery: f.delivery.trim() || "1–3 дня по России",
       sizes: f.sizes, colors: f.colors.length ? f.colors : ["#8f8677"], images: f.images,
@@ -2251,7 +2286,33 @@ function ProductForm({ initial, products, extraTypes = [], onAddType, onSave, on
           <Field label="Цвета">
             <ColorEditor colors={f.colors} onChange={(v) => set("colors", v)} />
           </Field>
-          <Field label="Состав"><input value={f.material} onChange={(e) => set("material", e.target.value)} placeholder="80% шерсть, 20% полиамид" /></Field>
+          <Field label="Материалы (каждый со своим фото)">
+            <div className="mat-editor">
+              {(f.materials || []).map((m, i) => (
+                <div className="mat-row" key={i}>
+                  <label className="mat-photo">
+                    {m.photo ? <img src={imgThumb(m.photo)} alt="" /> : <span className="mat-photo-add"><Upload size={15} /></span>}
+                    <input type="file" accept="image/*" hidden onChange={async (e) => {
+                      const file = e.target.files?.[0]; e.target.value = "";
+                      if (!file) return;
+                      setMatBusy(i);
+                      try { const url = await processImage(file); setF((s) => { const arr = [...s.materials]; arr[i] = { ...arr[i], photo: url }; return { ...s, materials: arr }; }); }
+                      catch (err) { setErr("Не удалось загрузить фото материала"); }
+                      setMatBusy(-1);
+                    }} />
+                    {matBusy === i && <span className="mat-loading">…</span>}
+                  </label>
+                  <input className="mat-name" value={m.name} placeholder="80% шерсть"
+                    onChange={(e) => setF((s) => { const arr = [...s.materials]; arr[i] = { ...arr[i], name: e.target.value }; return { ...s, materials: arr }; })} />
+                  <button type="button" className="mat-del" onClick={() => setF((s) => ({ ...s, materials: s.materials.filter((_, k) => k !== i) }))} aria-label="Удалить"><Trash2 size={15} /></button>
+                </div>
+              ))}
+              <button type="button" className="mat-add" onClick={() => setF((s) => ({ ...s, materials: [...(s.materials || []), { name: "", photo: "" }] }))}>
+                <Plus size={15} /> Добавить материал
+              </button>
+              <p className="form-hint">Например: «80% шерсть» и фото шерсти, «20% полиамид» и фото подкладки. Показываются на странице и в каталоге.</p>
+            </div>
+          </Field>
           <Field label="Уход"><input value={f.care} onChange={(e) => set("care", e.target.value)} placeholder="Сухая чистка" /></Field>
           <Field label="Описание"><textarea rows={4} value={f.desc} onChange={(e) => set("desc", e.target.value)} placeholder="Короткое описание товара…" /></Field>
           <Field label="Ключевые детали (каждая с новой строки)"><textarea rows={4} value={f.highlights} onChange={(e) => set("highlights", e.target.value)} placeholder={"Автоподзавод, 24 камня\nВодозащита 100 м\nСапфировое стекло"} /></Field>
@@ -3134,7 +3195,7 @@ html{scroll-behavior:smooth}
 .avail-dot.out{background:rgba(124,38,52,.1);color:var(--accent)}
 .p-fabrics{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
 .p-fabrics span{border:1px solid var(--line);background:var(--card);border-radius:100px;padding:6px 14px;font-size:12.5px;color:var(--ink-soft)}
-.btn-cta .cta-price{opacity:.75;font-weight:400}
+.btn-cta .cta-price{opacity:1;font-weight:500;margin-left:2px}
 .p-promise{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--ink-soft);margin:22px 0 4px}
 .p-promise i{font-style:normal;color:var(--accent)}
 .product .related{margin-top:80px;padding-top:46px;border-top:1px solid var(--line)}
@@ -3248,9 +3309,9 @@ html{scroll-behavior:smooth}
   .add-row{position:sticky;bottom:12px;z-index:20;background:color-mix(in srgb, var(--paper) 90%, transparent);backdrop-filter:blur(10px);padding:10px;margin:20px -10px 24px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.1)}
   .p-crumb{font-size:12px}
 
-  /* оформление: сводка сверху, поля крупнее для пальца */
+  /* оформление на мобильном: сводка НЕ липкая, уходит под форму */
   .checkout-grid{display:flex;flex-direction:column}
-  .summary{order:-1}
+  .summary{position:static;order:1;top:auto}
   .field input,.field textarea,.field select{font-size:16px;padding:14px}
   .pay-cards{grid-template-columns:1fr}
 
@@ -3401,6 +3462,30 @@ html{scroll-behavior:smooth}
 .pm-text{display:flex;flex-direction:column;gap:2px;min-width:0}
 .pm-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
 .pm-value{font-size:13px;color:var(--ink);line-height:1.4}
+
+/* редактор материалов в админке */
+.mat-editor{display:flex;flex-direction:column;gap:10px}
+.mat-row{display:flex;align-items:center;gap:10px}
+.mat-photo{position:relative;width:46px;height:46px;flex-shrink:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer;background:var(--card);display:grid;place-items:center}
+.mat-photo img{width:100%;height:100%;object-fit:cover}
+.mat-photo-add{color:var(--ink-soft)}
+.mat-loading{position:absolute;inset:0;display:grid;place-items:center;background:rgba(255,255,255,.7);font-size:18px}
+.mat-name{flex:1;padding:11px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:14px;background:var(--paper);color:var(--ink)}
+.mat-del{width:38px;height:38px;flex-shrink:0;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;color:var(--ink-soft);transition:all .2s}
+.mat-del:hover{border-color:var(--accent);color:var(--accent)}
+.mat-add{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border:1px dashed var(--line);border-radius:8px;font-size:13px;color:var(--ink);align-self:flex-start;transition:border-color .2s}
+.mat-add:hover{border-color:var(--accent);color:var(--accent)}
+
+/* несколько материалов в каталоге — стопкой */
+.piece-mats{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.piece-mats .piece-material{margin-bottom:0}
+
+/* материалы в аккордеоне товара */
+.acc-mats{display:flex;flex-direction:column;gap:10px}
+.acc-mat{display:flex;align-items:center;gap:12px}
+.acc-mat img{width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.acc-mat span{font-size:14px;color:var(--ink)}
+.acc-care{margin-top:4px;font-size:13px;color:var(--ink-soft);line-height:1.6}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
