@@ -10,5 +10,15 @@ if (!url || !anonKey) {
   );
 }
 
-export const supabase = createClient(url, anonKey);
+export const supabase = createClient(url, anonKey, {
+  auth: {
+    // сессия сохраняется между визитами
+    persistSession: true,
+    autoRefreshToken: true,
+    // КЛЮЧЕВОЕ: ловим токены из ссылки в письме и входим автоматически
+    detectSessionInUrl: true,
+    flowType: "implicit",
+  },
+});
+
 export const BUCKET = "product-images";
