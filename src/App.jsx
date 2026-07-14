@@ -64,7 +64,7 @@ const DEFAULT_SETTINGS = {
   luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
   manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
   phone: "+7 900 000-00-00",
-  email: "hello@vashresale.ru",
+  email: "hello@rovelle.moscow",
   address: "Москва",
   hours: "Онлайн, 24/7",
   instagram: "https://instagram.com/rovelle",
