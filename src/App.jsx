@@ -205,6 +205,7 @@ function Store() {
   const [booting, setBooting] = useState(true);
   const [fatal, setFatal] = useState("");
   const [fade, setFade] = useState(false);
+  const [justConfirmed, setJustConfirmed] = useState(false); // пришёл по ссылке из письма
 
   // гостевая корзина: не теряется при закрытии вкладки
   useEffect(() => {
@@ -256,8 +257,29 @@ function Store() {
         setOrders(await fetchOrders());
       } catch (e) { console.error("Профиль не загружен:", e); }
     };
+    // человек пришёл по ссылке из письма: в адресе токены Supabase
+    const cameFromEmail = window.location.hash.includes("access_token=");
+
     supabase.auth.getSession().then(({ data }) => applySession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => applySession(session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      applySession(session);
+      // сессия получена из ссылки — убираем токены из адреса и приветствуем
+      if (session?.user && window.location.hash.includes("access_token=")) {
+        window.history.replaceState(null, "", window.location.pathname + "#/");
+        setView("catalog");
+        setJustConfirmed(true);
+        setTimeout(() => setJustConfirmed(false), 6000);
+      }
+    });
+
+    // если письмо подтверждено, но сессия почему-то не поднялась — не оставляем мусор в адресе
+    if (cameFromEmail) {
+      setTimeout(() => {
+        if (window.location.hash.includes("access_token=")) {
+          window.history.replaceState(null, "", window.location.pathname + "#/");
+        }
+      }, 3000);
+    }
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -304,7 +326,11 @@ function Store() {
   // читаем адрес при загрузке и по кнопке «Назад»
   useEffect(() => {
     const applyHash = () => {
-      const h = window.location.hash.replace(/^#\/?/, "");
+      const raw = window.location.hash;
+      // ссылка подтверждения почты приходит как #access_token=...&type=signup —
+      // это адрес Supabase, а не наш маршрут: не трогаем, клиент сам заберёт сессию
+      if (raw.includes("access_token=") || raw.includes("error_description=")) return;
+      const h = raw.replace(/^#\/?/, "");
       const [seg, id] = h.split("/");
       if (seg === "product" && id) { setSelectedId(Number(id)); setView("product"); }
       else if (["cart", "checkout", "favorites", "info", "account", "orders", "login", "admin", "success"].includes(seg)) setView(seg);
@@ -411,7 +437,9 @@ function Store() {
   };
   const register = async ({ name, email, phone, pass }) => {
     const r = await signUp({ name: name.trim(), email: email.trim().toLowerCase(), phone: phone.trim(), pass });
-    if (r.ok) go("catalog");
+    // вошли сразу (подтверждение почты выключено) — открываем каталог
+    if (r.ok && r.signedIn) go("catalog");
+    // иначе AuthView покажет экран «проверьте почту», вход случится сам по ссылке
     return r;
   };
   const logout = async () => { await signOut(); setIsAdmin(false); setUser(null); setCart([]); setFavorites([]); setOrders([]); go("catalog"); };
@@ -456,6 +484,12 @@ function Store() {
     <div className={`store ${themeClass}`}>
       <style>{css}</style>
       <ScrollProgress />
+      {justConfirmed && (
+        <div className="welcome-toast" role="status">
+          <Check size={17} />
+          <span>Почта подтверждена{user?.name ? `, ${user.name}` : ""} — вы вошли в аккаунт</span>
+        </div>
+      )}
       <BackToTop />
       <div className="announce">{settings.announce}</div>
 
@@ -649,10 +683,13 @@ function RotatingWord({ words, interval = 2200 }) {
 }
 
 /* --------- Монограмма R в рамке --------- */
-function Monogram({ size = 150 }) {
+function Monogram({ size = 150, withWord = false }) {
   return (
-    <div className="mono" style={{ width: size, height: size, "--ms": `${size}px` }}>
-      <span className="mono-r">R</span>
+    <div className="mono-wrap" style={{ "--ms": `${size}px` }}>
+      <div className="mono" style={{ width: size, height: size }}>
+        <span className="mono-rv"><i>R</i><b>V</b></span>
+      </div>
+      {withWord && <span className="mono-word">ROVELLE</span>}
     </div>
   );
 }
@@ -681,7 +718,7 @@ function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
   return (
     <section className="bhero" ref={ref} onMouseMove={onMove}>
       <div className="bhero-glow" aria-hidden="true" />
-      <div className="bhero-mark" ref={markRef} aria-hidden="true">R</div>
+      <div className="bhero-mark" ref={markRef} aria-hidden="true">RV</div>
       <h1 className="bhero-name"><Wordmark animate /></h1>
       <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
       <Reveal delay={600}>
@@ -1705,6 +1742,7 @@ function AuthView({ onLogin, onRegister, onBack, brand }) {
   const [f, setF] = useState({ id: "", name: "", email: "", phone: "", pass: "" });
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sentTo, setSentTo] = useState(""); // письмо отправлено, ждём подтверждения
   const set = (k, v) => { setF((s) => ({ ...s, [k]: v })); setErr(""); };
 
   const doLogin = async () => {
@@ -1722,8 +1760,30 @@ function AuthView({ onLogin, onRegister, onBack, brand }) {
     setBusy(true);
     const r = await onRegister({ name: f.name, email: f.email, phone: f.phone, pass: f.pass });
     setBusy(false);
-    if (!r.ok) setErr(r.error || "Не удалось зарегистрироваться");
+    if (!r.ok) return setErr(r.error || "Не удалось зарегистрироваться");
+    // почту нужно подтвердить — показываем экран ожидания
+    if (r.needsConfirm) setSentTo(r.email || f.email);
   };
+
+  // Письмо отправлено: вход произойдёт сам, как только человек нажмёт ссылку
+  if (sentTo) {
+    return (
+      <section className="login-page">
+        <div className="login-card confirm-card">
+          <div className="login-icon confirm-icon"><Send size={22} /></div>
+          <h1 className="confirm-h">Проверьте почту</h1>
+          <p className="confirm-p">
+            Мы отправили письмо на <b>{sentTo}</b>. Откройте его и нажмите кнопку подтверждения —
+            вы <b>сразу войдёте в аккаунт</b>, ничего вводить заново не нужно.
+          </p>
+          <div className="confirm-hint">
+            <span>Письма нет? Проверьте папку «Спам» — иногда оно попадает туда.</span>
+          </div>
+          <button className="btn-ghost btn-block" onClick={() => { setSentTo(""); setMode("login"); }}>Вернуться ко входу</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="login-page">
@@ -3110,8 +3170,12 @@ html{scroll-behavior:smooth}
 @keyframes wmline{to{transform:scaleX(1)}}
 
 /* монограмма */
+.mono-wrap{display:flex;flex-direction:column;align-items:center;gap:.5em}
 .mono{position:relative;margin:0 auto;border:1.5px solid var(--accent);display:grid;place-items:center;overflow:hidden}
-.mono-r{font-family:var(--serif);font-weight:400;font-size:calc(var(--ms,150px) * .5);color:var(--accent);line-height:1;padding-top:.04em}
+.mono-rv{font-family:var(--serif);font-weight:400;font-size:calc(var(--ms,150px) * .42);color:var(--accent);line-height:1;display:inline-flex;align-items:baseline;letter-spacing:-.04em}
+.mono-rv i{font-style:normal}
+.mono-rv b{font-weight:400;font-style:italic;margin-left:-.06em}
+.mono-word{font-family:var(--serif);font-size:calc(var(--ms,150px) * .13);letter-spacing:.34em;padding-left:.34em;color:var(--accent);white-space:nowrap}
 
 /* первый экран */
 .bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative;overflow:hidden}
@@ -3138,7 +3202,7 @@ html{scroll-behavior:smooth}
 .lines{display:grid;grid-template-columns:1fr 1fr;min-height:460px}
 .line-panel{display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;text-align:left;gap:13px;padding:48px 44px;cursor:pointer;position:relative;overflow:hidden;transition:transform .5s cubic-bezier(.2,.7,.2,1),box-shadow .5s,filter .4s}
 /* фоновая буква-знак, проявляется при наведении */
-.line-panel::before{content:"R";position:absolute;right:-6%;bottom:-18%;font-family:var(--serif);font-size:clamp(220px,26vw,360px);line-height:1;opacity:.045;transform:translateY(20px) rotate(-4deg);transition:opacity .5s,transform .7s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+.line-panel::before{content:"RV";position:absolute;right:-6%;bottom:-18%;font-family:var(--serif);font-size:clamp(220px,26vw,360px);line-height:1;opacity:.045;transform:translateY(20px) rotate(-4deg);transition:opacity .5s,transform .7s cubic-bezier(.2,.7,.2,1);pointer-events:none}
 /* тонкая линия-акцент, «прочерчивается» снизу вверх слева */
 .line-panel::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);transform:scaleY(0);transform-origin:bottom;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
 .line-panel>*{position:relative;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
@@ -3621,6 +3685,21 @@ html{scroll-behavior:smooth}
 .an-row-n{font-size:13px;color:var(--ink-soft);width:56px;text-align:right;flex-shrink:0}
 .an-empty{font-size:13px;color:var(--ink-soft)}
 .an-note{margin-top:18px;font-size:12px;color:var(--ink-soft)}
+
+/* приветствие после подтверждения почты */
+.welcome-toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:95;display:flex;align-items:center;gap:9px;background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:100px;font-size:13.5px;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:toastin .5s cubic-bezier(.2,.9,.3,1.2)}
+.welcome-toast svg{color:#7fbf8f;flex-shrink:0}
+@keyframes toastin{from{opacity:0;transform:translateX(-50%) translateY(-14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@media(max-width:600px){.welcome-toast{left:12px;right:12px;transform:none;justify-content:center}
+@keyframes toastin{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}}
+
+/* экран «проверьте почту» */
+.confirm-card{text-align:center}
+.confirm-icon{background:var(--accent)!important;color:#fff!important}
+.confirm-h{font-family:var(--serif);font-weight:400;font-size:26px;margin:14px 0 10px}
+.confirm-p{font-size:14.5px;line-height:1.7;color:var(--ink-soft);margin-bottom:18px}
+.confirm-p b{color:var(--ink);font-weight:500}
+.confirm-hint{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--ink-soft);line-height:1.55;margin-bottom:18px}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
