@@ -503,7 +503,7 @@ function Store() {
       {menuOpen && (
         <div className="mobile-menu">
           <div className="mm-top">
-            <Wordmark size={24} />
+            <span className="wm"><span className="wm-letters-static mm-word">ROVELLE</span><span className="wm-line" /></span>
             <button className="icon-btn menu-close" onClick={() => setMenuOpen(false)} aria-label="Закрыть"><X size={22} /></button>
           </div>
           <div className="mm-links">
@@ -591,7 +591,7 @@ function Header({ brand, logo, cartCount, favCount, isAdmin, onLogo, onCart, onN
         {isAdmin && <button className="nav-link nav-admin" onClick={onAccount}>Админ</button>}
       </nav>
       <button className="wordmark" onClick={onLogo} aria-label={brand}>
-        {logo ? <img className="brand-logo" src={logo} alt={brand} /> : <Wordmark size={22} />}
+        {logo ? <img className="brand-logo" src={logo} alt={brand} /> : <span className="wm wm-head"><span className="wm-letters-static">ROVELLE</span><span className="wm-line" /></span>}
       </button>
       <div className="header-actions">
         <button className="icon-btn only-desktop" aria-label="Поиск" onClick={onSearch}><Search size={19} /></button>
@@ -659,9 +659,17 @@ function BackToTop() {
 }
 
 /* --------- Фирменное начертание: ROVELLE + линия --------- */
-function Wordmark({ animate = false, size = 30 }) {
-  // фирменное начертание ROVELLE, обведённое с логотипа — не шрифт, а сам знак
-  return <span className={`wm-brand ${animate ? "wm-brand-in" : ""}`} style={{ height: size }} role="img" aria-label="ROVELLE" />;
+function Wordmark({ animate = false }) {
+  return (
+    <span className={`wm ${animate ? "wm-anim" : ""}`}>
+      <span className="wm-letters">
+        {"ROVELLE".split("").map((ch, i) => (
+          <span key={i} style={animate ? { animationDelay: `${140 + i * 70}ms` } : undefined}>{ch}</span>
+        ))}
+      </span>
+      <span className="wm-line" />
+    </span>
+  );
 }
 
 /* --------- Сменяющиеся слова --------- */
@@ -676,7 +684,7 @@ function RotatingWord({ words, interval = 2200 }) {
 
 /* --------- Логотип бренда: точная векторная копия знака, цвет следует теме --------- */
 function Monogram({ size = 150 }) {
-  return <div className="mono-img" style={{ width: size, height: size }} role="img" aria-label="ROVELLE" />;
+  return <div className="mono-img" style={{ height: size, width: size * 0.878 }} role="img" aria-label="ROVELLE" />;
 }
 
 /* --------- Первый экран: свет за курсором + параллакс --------- */
@@ -703,8 +711,8 @@ function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
   return (
     <section className="bhero" ref={ref} onMouseMove={onMove}>
       <div className="bhero-glow" aria-hidden="true" />
-      <div className="bhero-mark" ref={markRef} aria-hidden="true">RV</div>
-      <h1 className="bhero-name"><Wordmark animate size={64} /></h1>
+      <div className="bhero-mark" ref={markRef} aria-hidden="true" />
+      <h1 className="bhero-name"><Wordmark animate /></h1>
       <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
       <Reveal delay={600}>
         <div className="hero-lines">
@@ -2509,7 +2517,7 @@ function Footer({ settings, onNav, onInfo, onAdmin, isAdmin, user }) {
   return (
     <footer className="footer">
       <div className="footer-mark" aria-hidden="true">
-        <span className="footer-brand"><Wordmark size={34} /></span>
+        <span className="wm"><span className="wm-letters-static footer-wm">ROVELLE</span><span className="wm-line" /></span>
       </div>
       <div className="footer-cols">
         <div className="footer-brand-col">
@@ -3144,22 +3152,26 @@ html{scroll-behavior:smooth}
 .rv-in{opacity:1;transform:none}
 
 /* фирменное начертание */
-/* фирменная надпись ROVELLE — обведена с логотипа, цвет следует теме */
-.wm-brand{display:block;aspect-ratio:11.65/1;background-color:var(--accent);-webkit-mask:url(/logo-word.svg) center/contain no-repeat;mask:url(/logo-word.svg) center/contain no-repeat;transition:background-color .6s ease}
-.wm-brand-in{animation:wmfade 1s cubic-bezier(.2,.7,.2,1) .1s both}
-@keyframes wmfade{from{opacity:0;transform:translateY(10px);letter-spacing:0}to{opacity:1;transform:none}}
-.footer-brand .wm-brand{background-color:var(--paper);opacity:.92}
+.wm{display:inline-flex;flex-direction:column;align-items:center;gap:.14em}
+.wm-letters,.wm-letters-static{font-family:var(--serif);font-weight:400;letter-spacing:.3em;padding-left:.3em;white-space:nowrap}
+.wm-line{display:block;width:72%;height:1px;background:var(--accent);opacity:.75}
+.wm-head .wm-letters-static{font-size:19px;color:var(--ink)}
+.wm-head .wm-line{height:1px}
+.wm-anim .wm-letters span{display:inline-block;opacity:0;transform:translateY(.5em);animation:wmrise .7s cubic-bezier(.2,.7,.2,1) forwards}
+.wm-anim .wm-line{transform:scaleX(0);animation:wmline .9s cubic-bezier(.2,.7,.2,1) .85s forwards}
+@keyframes wmrise{to{opacity:1;transform:none}}
+@keyframes wmline{to{transform:scaleX(1)}}
 .brand-logo{max-height:26px;width:auto;display:block}
 
 /* монограмма */
-.mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;transition:background-color .6s ease}
+.mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat;transition:background-color .6s ease}
 
 /* первый экран */
 .bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative;overflow:hidden}
 .bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,38%),rgba(var(--glow),.12),transparent 68%);transition:background .1s}
-.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--serif);font-size:clamp(240px,42vw,520px);line-height:1;color:var(--accent);opacity:.05;pointer-events:none;user-select:none;max-width:100%}
-.bhero-name{margin:0 0 22px;position:relative;width:min(88vw,620px);max-width:100%}
-.bhero-name .wm-brand{width:100%;height:auto!important}
+.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(260px,40vw,500px);aspect-ratio:1/1;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;opacity:.07;pointer-events:none;user-select:none}
+.bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
+.bhero-name .wm-line{margin-top:.1em}
 .bhero-tag{max-width:520px;color:var(--ink-soft);font-size:16px;line-height:1.7;margin-bottom:34px;position:relative}
 .bhero-cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;position:relative}
 .bhero-est{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-soft)}
@@ -3342,6 +3354,8 @@ html{scroll-behavior:smooth}
 
 /* большой знак в подвале */
 .footer-mark{display:flex;justify-content:center;padding:8px 20px 40px}
+.footer-wm{font-size:clamp(26px,4.4vw,40px);color:var(--paper);opacity:.92}
+.footer-mark .wm-line{background:var(--paper);opacity:.35}
 
 /* оформление — премиум */
 .ck-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:34px}
@@ -3394,6 +3408,7 @@ html{scroll-behavior:smooth}
   /* меню */
   .mobile-menu{padding:0;gap:0}
   .mm-top{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--line)}
+  .mm-word{font-size:20px;color:var(--ink)}
   .menu-close{position:static}
   .mm-links{display:flex;flex-direction:column;padding:8px 0}
   .mobile-link{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 24px;font-family:var(--serif);font-size:24px;color:var(--ink);border-bottom:1px solid var(--line);opacity:0;transform:translateX(-12px);animation:mmin .45s cubic-bezier(.2,.7,.2,1) forwards}
@@ -3405,7 +3420,7 @@ html{scroll-behavior:smooth}
 
   /* первый экран короче и живее */
   .bhero{min-height:auto;padding:54px 22px 66px}
-  .bhero-mark{font-size:clamp(200px,68vw,340px);opacity:.06}
+  .bhero-mark{width:clamp(220px,66vw,330px);opacity:.07}
   .bhero-tag{font-size:15px}
   .bhero-cta{width:100%;flex-direction:column;gap:10px}
   .bhero-cta .btn-primary,.bhero-cta .btn-ghost{width:100%}
