@@ -133,11 +133,17 @@ export async function signUp({ name, email, phone, pass }) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password: pass,
-    options: { data: { name, phone } },
+    options: {
+      data: { name, phone },
+      // после клика по ссылке в письме человек вернётся сюда и войдёт автоматически
+      emailRedirectTo: window.location.origin,
+    },
   });
   if (error) return { ok: false, error: translateAuthError(error.message) };
-  if (!data.session) return { ok: false, error: "Подтвердите e-mail по ссылке из письма, затем войдите." };
-  return { ok: true };
+  // сессия есть сразу — подтверждение почты выключено, человек уже вошёл
+  if (data.session) return { ok: true, signedIn: true };
+  // сессии нет — ждём подтверждения по ссылке, вход произойдёт автоматически
+  return { ok: true, signedIn: false, needsConfirm: true, email };
 }
 
 export async function signIn(email, pass) {
