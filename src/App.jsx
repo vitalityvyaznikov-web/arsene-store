@@ -684,7 +684,7 @@ function RotatingWord({ words, interval = 2200 }) {
 
 /* --------- Логотип бренда: точная векторная копия знака, цвет следует теме --------- */
 function Monogram({ size = 150 }) {
-  return <div className="mono-img" style={{ height: size, width: size * 0.878 }} role="img" aria-label="ROVELLE" />;
+  return <div className="mono-img" style={{ height: size, width: size * 1.033 }} role="img" aria-label="ROVELLE" />;
 }
 
 /* --------- Первый экран: свет за курсором + параллакс --------- */
@@ -868,7 +868,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         {luxeEmpty ? (
           <Reveal>
             <div className="luxe-tease">
-              <Monogram size={90} />
+              <Monogram size={130} />
               <h3>Линия готовится</h3>
               <p>Поло из благородного хлопка, брюки с идеальной посадкой, полузамки и лоферы. Без логотипов — только ткань и крой. Следите в Telegram, чтобы не пропустить запуск.</p>
               {settings.telegram && <a className="btn-primary" href={settings.telegram} target="_blank" rel="noreferrer"><Send size={15} /> Ждать в Telegram</a>}
@@ -883,7 +883,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
               {i === 2 && (
                 <Reveal className="manifesto-card-wrap">
                   <div className="manifesto-card">
-                    <Monogram size={64} />
+                    <Monogram size={92} />
                     <p>{(settings.manifesto || "Мы не печатаем логотипы.\nМы прошиваем историю.").split("\n").map((ln, k) => <React.Fragment key={k}>{k > 0 && <br />}{ln}</React.Fragment>)}</p>
                   </div>
                 </Reveal>
@@ -3164,12 +3164,12 @@ html{scroll-behavior:smooth}
 .brand-logo{max-height:26px;width:auto;display:block}
 
 /* монограмма */
-.mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat;transition:background-color .6s ease}
+.mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;transition:background-color .6s ease}
 
 /* первый экран */
 .bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative;overflow:hidden}
 .bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,38%),rgba(var(--glow),.12),transparent 68%);transition:background .1s}
-.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(260px,40vw,500px);aspect-ratio:1/1;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;opacity:.07;pointer-events:none;user-select:none}
+.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(340px,52vw,660px);aspect-ratio:1.033/1;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;opacity:.07;pointer-events:none;user-select:none}
 .bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
 .bhero-name .wm-line{margin-top:.1em}
 .bhero-tag{max-width:520px;color:var(--ink-soft);font-size:16px;line-height:1.7;margin-bottom:34px;position:relative}
@@ -3420,7 +3420,7 @@ html{scroll-behavior:smooth}
 
   /* первый экран короче и живее */
   .bhero{min-height:auto;padding:54px 22px 66px}
-  .bhero-mark{width:clamp(220px,66vw,330px);opacity:.07}
+  .bhero-mark{width:clamp(280px,82vw,420px);opacity:.07}
   .bhero-tag{font-size:15px}
   .bhero-cta{width:100%;flex-direction:column;gap:10px}
   .bhero-cta .btn-primary,.bhero-cta .btn-ghost{width:100%}
