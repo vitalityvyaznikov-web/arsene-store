@@ -664,6 +664,16 @@ function Wordmark({ animate = false, size = 30 }) {
   return <span className={`wm-brand ${animate ? "wm-brand-in" : ""}`} style={{ height: size }} role="img" aria-label="ROVELLE" />;
 }
 
+/* --------- Сменяющиеся слова --------- */
+function RotatingWord({ words, interval = 2200 }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((x) => (x + 1) % words.length), interval);
+    return () => clearInterval(t);
+  }, [words.length, interval]);
+  return <span key={i} className="rot-word">{words[i]}</span>;
+}
+
 /* --------- Логотип бренда: точная векторная копия знака, цвет следует теме --------- */
 function Monogram({ size = 150 }) {
   return <div className="mono-img" style={{ width: size, height: size }} role="img" aria-label="ROVELLE" />;
