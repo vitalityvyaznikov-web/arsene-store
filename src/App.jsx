@@ -23,7 +23,7 @@ import {
 const BRAND = "ROVELLE";
 const ORDER_STATUSES = ["Обработка", "Подтверждён", "Собирается", "В доставке", "Доставлен", "Отменён"];
 const DELIVERY_LABELS = { courier: "Курьер", cdek: "СДЭК", pickup: "Самовывоз" };
-const PAY_LABELS = { request: "Заявка (свяжемся)", online: "Оплата онлайн", sbp: "СБП онлайн", cash: "При получении" };
+const PAY_LABELS = { preorder: "Предзаказ (оплата с менеджером)", online: "Предзаказ оплачен", request: "Заявка (свяжемся)", sbp: "СБП онлайн", cash: "При получении" };
 const arr = (v) => (Array.isArray(v) ? v : []);
 const normalizeProduct = (p = {}) => ({
   ...p,
@@ -296,7 +296,7 @@ function Store() {
     if (!settings) return;
     const brand = BRAND;
     const p = view === "product" && selectedId ? byId(selectedId) : null;
-    const titles = { catalog: `${brand} — мужская одежда`, cart: `Корзина — ${brand}`, checkout: `Оформление заказа — ${brand}`,
+    const titles = { catalog: `${brand} — мужская одежда`, cart: `Корзина — ${brand}`, checkout: `Оформление предзаказа — ${brand}`,
       favorites: `Избранное — ${brand}`, info: `О магазине — ${brand}`, account: `Мой аккаунт — ${brand}`,
       orders: `Мои заказы — ${brand}`, admin: `Админ-панель — ${brand}`, success: `Заказ оформлен — ${brand}` };
     document.title = p ? `${p.name} — ${brand}` : (titles[view] || brand);
@@ -1450,7 +1450,7 @@ function CartView({ cart, byId, onChangeQty, onRemove, onShop, onOpen, onCheckou
           <div className="sum-row"><span>Товары</span><span>{money(subtotal)}</span></div>
           <div className="sum-row"><span>Доставка</span><span>{shipping === 0 ? "Бесплатно" : money(shipping)}</span></div>
           <div className="sum-row total"><span>К оплате</span><span className="total-sum">{money(total)}</span></div>
-          <button className="btn-primary btn-block" onClick={onCheckout}>Оформить заказ</button>
+          <button className="btn-primary btn-block" onClick={onCheckout}>Оформить предзаказ</button>
           <button className="btn-ghost btn-block" onClick={onShop}>Продолжить покупки</button>
           <p className="summary-note">Налоги включены. Доставка бесплатно от {money(5000)}.</p>
         </aside>
@@ -1482,7 +1482,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
   const subtotal = items.reduce((s, i) => s + i.p.price * i.qty, 0);
   const [f, setF] = useState({
     name: user?.name || "", phone: user?.phone || "", city: "", address: "", pvz: "",
-    delivery: "courier", mode: "request", comment: "",
+    delivery: "courier", comment: "",
   });
   const shipping = f.delivery === "pickup" ? 0 : subtotal >= 5000 ? 0 : 390;
   const total = subtotal + shipping;
@@ -1500,8 +1500,8 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
 
   const buildMessage = () => {
     const lines = items.map(({ p, ...i }) => `• ${p.name} — размер ${i.size}, ${i.qty} шт — ${money(p.price * i.qty)}`).join("\n");
-    const payText = f.mode === "online" ? "Онлайн-оплата на сайте" : "Заявка — требуется подтверждение";
-    return `Здравствуйте! Заказ ${orderRef} в ${BRAND}.\n\n${lines}\n\nИтого: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\nДоставка: ${deliveryText()}\nОформление: ${payText}\n` +
+    const payText = settings.onlinePayEnabled ? "Предзаказ, полная оплата онлайн" : "Предзаказ, оплата с менеджером";
+    return `Здравствуйте! Предзаказ ${orderRef} в ${BRAND}.\n\n${lines}\n\nИтого: ${money(total)} (доставка: ${shipping === 0 ? "бесплатно" : money(shipping)})\nДоставка: ${deliveryText()}\nОформление: ${payText}\n` +
       (f.comment ? `Комментарий: ${f.comment}\n` : "") + `\nПокупатель: ${f.name}\nТелефон: ${f.phone}`;
   };
 
@@ -1524,7 +1524,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
       id: orderRef,
       customer: { name: f.name.trim(), phone: f.phone.trim(), email: user?.email || "" },
       delivery: { method: f.delivery, city: f.city.trim(), address: f.address.trim(), pvz: f.pvz.trim(), comment: f.comment.trim() },
-      payment: { method: f.mode, card: "" },
+      payment: { method: settings.onlinePayEnabled ? "online" : "preorder", card: "" },
       items: items.map(({ p, ...i }) => ({ id: p.id, name: p.name, brand: p.brand || "", size: i.size, qty: i.qty, price: p.price })),
       subtotal, shipping, total,
     };
@@ -1533,7 +1533,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
     const msg = buildMessage();
     const url = uname ? `https://t.me/${uname}?text=${encodeURIComponent(msg)}` : "";
     onTgFallback?.(url);
-    onMeta?.({ mode: f.mode, total });
+    onMeta?.({ mode: settings.onlinePayEnabled ? "online" : "preorder", paid: settings.onlinePayEnabled, total });
 
     const res = await onPlace(order);
     setBusy(false);
@@ -1546,7 +1546,7 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
     <section className="checkout">
       <button className="back-link" onClick={onBack}><ArrowLeft size={16} /> Корзина</button>
       <div className="ck-head">
-        <h1 className="drop-title">Оформление</h1>
+        <h1 className="drop-title">Оформление предзаказа</h1>
         <div className="ck-ref">Заказ {orderRef}</div>
       </div>
 
@@ -1587,27 +1587,26 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
           </div>
 
           <div className="ck-block">
-            <h3 className="ck-title">{num("03")} Как оформить</h3>
-            <div className="mode-cards">
-              <button className={`mode-card ${f.mode === "request" ? "on" : ""}`} onClick={() => set("mode", "request")}>
-                <span className="mode-ic"><Send size={18} /></span>
-                <span className="mode-t">Оставить заявку</span>
-                <span className="mode-d">Мы свяжемся с вами, подтвердим наличие и детали, поможем с оплатой и доставкой.</span>
-                <span className="mode-badge">Ничего платить сейчас не нужно</span>
-              </button>
-              <button className={`mode-card ${f.mode === "online" ? "on" : ""} ${!settings.onlinePayEnabled ? "mode-soon" : ""}`}
-                onClick={() => settings.onlinePayEnabled && set("mode", "online")} disabled={!settings.onlinePayEnabled}>
-                <span className="mode-ic"><Check size={18} /></span>
-                <span className="mode-t">Оплатить онлайн</span>
-                <span className="mode-d">Мгновенное оформление с оплатой картой на сайте. Заказ уходит в работу сразу.</span>
-                <span className="mode-badge">{settings.onlinePayEnabled ? "Быстро и без звонков" : "Скоро"}</span>
-              </button>
+            <h3 className="ck-title">{num("03")} Предзаказ и оплата</h3>
+            <div className="preorder-info">
+              <div className="preorder-ic"><Package size={20} /></div>
+              <div>
+                <b>Оформление предзаказа с полной оплатой</b>
+                <p>Вещи ограниченной серии выкупаются заранее. Оплата картой на защищённой странице —
+                   после оплаты предзаказ закрепляется за вами, и мы готовим отправку.</p>
+              </div>
             </div>
+            {!settings.onlinePayEnabled && (
+              <div className="preorder-soon">
+                Онлайн-оплата скоро подключится. Оставьте контакты — менеджер свяжется и поможет
+                оформить предзаказ с оплатой вручную.
+              </div>
+            )}
           </div>
         </div>
 
         <aside className="summary">
-          <h2 className="summary-title">Ваш заказ</h2>
+          <h2 className="summary-title">Ваш предзаказ</h2>
           <div className="ck-items">
             {items.map(({ p, ...i }) => (
               <div className="ck-item" key={i.key}>
@@ -1622,15 +1621,15 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
           </div>
           <div className="sum-row"><span>Товары</span><span>{money(subtotal)}</span></div>
           <div className="sum-row"><span>Доставка</span><span>{shipping === 0 ? "Бесплатно" : money(shipping)}</span></div>
-          <div className="sum-row total"><span>{f.mode === "online" ? "К оплате" : "Сумма"}</span><span className="total-sum">{money(total)}</span></div>
+          <div className="sum-row total"><span>К оплате</span><span className="total-sum">{money(total)}</span></div>
           {err && <div className="login-err">{err}</div>}
           <button className="btn-primary btn-block" onClick={submit} disabled={busy}>
-            {busy ? "Оформляем…" : f.mode === "online" ? <>Перейти к оплате {money(total)}</> : "Оставить заявку"}
+            {busy ? "Оформляем…" : settings.onlinePayEnabled ? <>Оплатить предзаказ {money(total)}</> : "Оформить предзаказ"}
           </button>
           <p className="summary-note">
-            {f.mode === "online"
-              ? "Оплата картой на защищённой странице. Заказ уходит в работу сразу после оплаты."
-              : "Это заявка — платить сейчас не нужно. Мы свяжемся с вами, чтобы подтвердить заказ."}
+            {settings.onlinePayEnabled
+              ? "Полная оплата картой на защищённой странице. После оплаты предзаказ закрепляется за вами."
+              : "Оставьте предзаказ — менеджер свяжется, чтобы принять оплату и подтвердить детали."}
           </p>
           <div className="p-promise ck-promise">
             <span>Ручной отбор</span><i>·</i><span>Возврат 14 дней</span><i>·</i><span>Без логомании</span>
@@ -1643,17 +1642,17 @@ function CheckoutView({ cart, byId, user, settings, onBack, onPlace, onTgFallbac
 
 /* --------------------------- Заказ принят --------------------------- */
 function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOrders, onShop }) {
-  const online = payMeta?.mode === "online";
-  const steps = online
-    ? ["Заказ принят", "Оплата получена", "Сборка", "Отправка"]
-    : ["Заявка принята", "Мы свяжемся", "Оплата и сборка", "Отправка"];
+  const paid = payMeta?.paid;
+  const steps = paid
+    ? ["Предзаказ оплачен", "Готовим партию", "Сборка", "Отправка"]
+    : ["Предзаказ принят", "Оплата с менеджером", "Сборка", "Отправка"];
   return (
     <section className="success">
       <div className="success-icon"><Check size={34} /></div>
-      <h1 className="success-title">{online ? "Заказ оформлен" : "Заявка принята"}</h1>
+      <h1 className="success-title">{paid ? "Предзаказ оплачен" : "Предзаказ оформлен"}</h1>
       {orderId && <div className="success-order">Номер: <b>{orderId}</b></div>}
 
-      <div className="order-steps" aria-label="Статус заказа">
+      <div className="order-steps" aria-label="Статус предзаказа">
         {steps.map((t, i) => (
           <div key={t} className={`ostep ${i === 0 ? "done" : i === 1 ? "now" : ""}`}>
             <span className="ostep-dot">{i === 0 ? <Check size={11} /> : i + 1}</span>
@@ -1664,16 +1663,16 @@ function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOr
       </div>
 
       <p className="success-sub">
-        {online
-          ? <>Спасибо за заказ в {brand}. Оплата получена, заказ уже в работе — мы напишем, когда он отправится.</>
-          : <>Спасибо за заявку в {brand}. <b>Мы свяжемся с вами</b> — обычно в течение часа, — подтвердим наличие, поможем с оплатой и доставкой. Держите телефон под рукой.</>}
+        {paid
+          ? <>Спасибо за предзаказ в {brand}. Оплата получена, вещь закреплена за вами — мы напишем, когда партия будет готова к отправке.</>
+          : <>Спасибо за предзаказ в {brand}. <b>Менеджер свяжется с вами</b> — обычно в течение часа, — примет полную оплату и подтвердит детали. Держите телефон под рукой.</>}
       </p>
 
-      {tgLink && !online && (
+      {tgLink && !paid && (
         <a className="tg-cta-big" href={tgLink} target="_blank" rel="noreferrer">
           <span className="tg-cta-icon"><Send size={20} /></span>
           <span className="tg-cta-text">
-            <b>Ускорить подтверждение</b>
+            <b>Ускорить оформление</b>
             <span>Написать менеджеру в Telegram — сообщение уже готово</span>
           </span>
           <ArrowRight size={18} />
@@ -1681,7 +1680,7 @@ function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOr
       )}
 
       <div className="success-actions">
-        {canTrack && <button className="btn-ghost" onClick={onOrders}>Мои заказы</button>}
+        {canTrack && <button className="btn-ghost" onClick={onOrders}>Мои предзаказы</button>}
         <button className="btn-ghost" onClick={onShop}>Вернуться к коллекции</button>
       </div>
     </section>
@@ -3524,18 +3523,11 @@ html{scroll-behavior:smooth}
 
 
 /* карточки способа оформления */
-.mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media(max-width:600px){.mode-cards{grid-template-columns:1fr}}
-.mode-card{border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px;text-align:left;cursor:pointer;transition:border-color .25s,box-shadow .3s,transform .2s,background .25s;position:relative}
-.mode-card:hover:not(:disabled){border-color:var(--ink);transform:translateY(-3px);box-shadow:0 14px 34px rgba(26,22,19,.1)}
-.mode-card.on{border-color:var(--accent);background:rgba(124,38,52,.045);box-shadow:0 10px 30px rgba(124,38,52,.1)}
-.mode-ic{width:40px;height:40px;border-radius:50%;background:var(--card);display:grid;place-items:center;color:var(--accent);margin-bottom:4px}
-.mode-card.on .mode-ic{background:var(--accent);color:#fff}
-.mode-t{font-family:var(--serif);font-size:20px;color:var(--ink)}
-.mode-d{font-size:13.5px;line-height:1.6;color:var(--ink-soft)}
-.mode-badge{margin-top:4px;font-size:11.5px;letter-spacing:.03em;color:var(--accent);background:rgba(124,38,52,.08);border-radius:100px;padding:5px 12px}
-.mode-soon{opacity:.55;cursor:not-allowed}
-.mode-soon .mode-badge{color:var(--ink-soft);background:var(--card)}
+.preorder-info{display:flex;gap:14px;align-items:flex-start;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.preorder-ic{width:44px;height:44px;flex-shrink:0;border-radius:50%;background:color-mix(in srgb,var(--accent) 12%,transparent);display:grid;place-items:center;color:var(--accent)}
+.preorder-info b{display:block;font-size:15px;margin-bottom:5px;color:var(--ink)}
+.preorder-info p{font-size:13.5px;line-height:1.65;color:var(--ink-soft)}
+.preorder-soon{margin-top:12px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,transparent);font-size:13px;line-height:1.6;color:var(--ink-soft)}
 
 .toggle-row{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:14px;cursor:pointer}
 .toggle-row input{width:20px;height:20px;margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
