@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /#/admin
+Disallow: /#/account
+Disallow: /#/orders
+Disallow: /#/checkout
+Disallow: /#/cart
+
+Sitemap: https://rovelle.moscow/sitemap.xml
+Host: https://rovelle.moscow
