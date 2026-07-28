@@ -802,6 +802,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
   };
 
   const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0;
+  const featured = list[0];
   const tickerWords = ["Heritage", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
 
   return (
@@ -851,66 +852,72 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         ) : list.length === 0 ? (
           <p className="drop-empty">{q ? "Ничего не нашлось — попробуйте другой запрос." : "Вещи скоро появятся."}</p>
         ) : (
-          <div className="drop-list">
-            {list.map((p, i) => (
-              <React.Fragment key={p.id}>
-              <Reveal delay={(i % 2) * 80} className={i % 2 ? "rv-right" : "rv-left"}>
-                <article className={`piece ${i % 2 ? "piece-flip" : ""}`}>
-                  <PieceMedia p={p} onOpen={() => onOpen(p.id)} />
-                  <div className="piece-info">
-                    <div className="piece-no">{String(i + 1).padStart(2, "0")} <span>/ {String(list.length).padStart(2, "0")}</span></div>
-                    <h3 className="piece-name">{p.name}</h3>
-                    <div className="piece-meta">{LINE_LABELS[p.cat] || p.cat} · {typeLabel(p.type)}</div>
-                    <ExpandableText text={p.desc} className="piece-desc" />
-                    {(p.materials && p.materials.length > 0) ? (
-                      <div className="piece-mats">
-                        {p.materials.map((m, mi) => (
-                          <div className="piece-material" key={mi}>
-                            <div className="pm-swatch">
-                              {m.photo ? <img src={imgThumb(m.photo)} alt={m.name} loading="lazy" />
-                                : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
-                            </div>
-                            <div className="pm-text">
-                              <span className="pm-label">Материал</span>
-                              <span className="pm-value">{m.name}</span>
-                            </div>
+          <>
+            <Reveal className="rv-left">
+              <article className="piece">
+                <PieceMedia p={featured} onOpen={() => onOpen(featured.id)} />
+                <div className="piece-info">
+                  <div className="piece-no">Nº 001</div>
+                  <h3 className="piece-name">{featured.name}</h3>
+                  <div className="piece-meta">{LINE_LABELS[featured.cat] || featured.cat} · {typeLabel(featured.type)}</div>
+                  <ExpandableText text={featured.desc} className="piece-desc" />
+                  {(featured.materials && featured.materials.length > 0) ? (
+                    <div className="piece-mats">
+                      {featured.materials.map((m, mi) => (
+                        <div className="piece-material" key={mi}>
+                          <div className="pm-swatch">
+                            {m.photo ? <img src={imgThumb(m.photo)} alt={m.name} loading="lazy" />
+                              : <span className="pm-color" style={{ background: (featured.colors && featured.colors[0]) || "#8f8677" }} />}
                           </div>
-                        ))}
-                      </div>
-                    ) : p.material && (
-                      <div className="piece-material">
-                        <div className="pm-swatch">
-                          {getGallery(p).length > 1
-                            ? <img src={getGallery(p)[getGallery(p).length - 1].thumb} alt="Материал" loading="lazy" />
-                            : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
+                          <div className="pm-text">
+                            <span className="pm-label">Материал</span>
+                            <span className="pm-value">{m.name}</span>
+                          </div>
                         </div>
-                        <div className="pm-text">
-                          <span className="pm-label">Материал</span>
-                          <span className="pm-value">{p.material}</span>
-                        </div>
+                      ))}
+                    </div>
+                  ) : featured.material && (
+                    <div className="piece-material">
+                      <div className="pm-swatch">
+                        {getGallery(featured).length > 1
+                          ? <img src={getGallery(featured)[getGallery(featured).length - 1].thumb} alt="Материал" loading="lazy" />
+                          : <span className="pm-color" style={{ background: (featured.colors && featured.colors[0]) || "#8f8677" }} />}
                       </div>
-                    )}
-                    <div className="piece-sizes">{(p.sizes || []).map((s) => <span key={s}>{s}</span>)}</div>
-                    <div className="piece-row">
-                      <div className="piece-price">
-                        {p.oldPrice > 0 && <span className="old">{money(p.oldPrice)}</span>}
-                        <span className={p.oldPrice > 0 ? "sale-price" : ""}>{money(p.price)}</span>
-                      </div>
-                      <div className="piece-actions">
-                        <button className={`fav-btn ${favorites.includes(p.id) ? "fav-on" : ""}`} onClick={() => onFav(p.id)} aria-label="В избранное">
-                          <Heart size={17} fill={favorites.includes(p.id) ? "currentColor" : "none"} />
-                        </button>
-                        <button className="btn-primary" onClick={() => onOpen(p.id)}>Смотреть вещь</button>
+                      <div className="pm-text">
+                        <span className="pm-label">Материал</span>
+                        <span className="pm-value">{featured.material}</span>
                       </div>
                     </div>
-                    {p.stock > 0 && p.stock <= 3 && <div className="piece-low">Осталось {p.stock} шт</div>}
-                    {p.stock <= 0 && <div className="piece-out">Распродано</div>}
+                  )}
+                  <div className="piece-sizes">{(featured.sizes || []).map((sz) => <span key={sz}>{sz}</span>)}</div>
+                  <div className="piece-row">
+                    <div className="piece-price">
+                      {featured.oldPrice > 0 && <span className="old">{money(featured.oldPrice)}</span>}
+                      <span className={featured.oldPrice > 0 ? "sale-price" : ""}>{money(featured.price)}</span>
+                    </div>
+                    <div className="piece-actions">
+                      <button className={`fav-btn ${favorites.includes(featured.id) ? "fav-on" : ""}`} onClick={() => onFav(featured.id)} aria-label="В избранное">
+                        <Heart size={17} fill={favorites.includes(featured.id) ? "currentColor" : "none"} />
+                      </button>
+                      <button className="btn-primary" onClick={() => onOpen(featured.id)}>Смотреть вещь</button>
+                    </div>
                   </div>
-                </article>
-              </Reveal>
-              </React.Fragment>
-            ))}
-          </div>
+                  {featured.stock > 0 && featured.stock <= 3 && <div className="piece-low">Осталось {featured.stock} шт</div>}
+                  {featured.stock <= 0 && <div className="piece-out">Распродано</div>}
+                </div>
+              </article>
+            </Reveal>
+
+            {list.length > 1 && (
+              <div className="drop-grid">
+                {list.slice(1).map((p, i) => (
+                  <Reveal key={p.id} delay={(i % 3) * 70}>
+                    <ProductCard p={p} onOpen={() => onOpen(p.id)} isFav={favorites.includes(p.id)} onFav={() => onFav(p.id)} />
+                  </Reveal>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -932,15 +939,6 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
             )}
           </div>
         </Reveal>
-      </section>
-
-      {/* ---------- Дополнительная информация ---------- */}
-      <section className="info-block">
-        <Reveal>
-          <div className="drop-eyebrow">Как всё устроено</div>
-          <h2 className="drop-title" style={{ marginBottom: 34 }}>Вопросы и ответы</h2>
-        </Reveal>
-        <Reveal delay={120}><FAQ /></Reveal>
       </section>
     </>
   );
@@ -1003,10 +1001,14 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
             <span className={p.oldPrice > 0 ? "sale-price" : ""}>{money(p.price)}</span>
           </div>
         </div>
-        <div className="card-foot">
-          <div className="card-sizes">{(p.sizes || []).slice(0, 5).map((s) => <span key={s}>{s}</span>)}</div>
-          <div className="swatches">{(p.colors || []).slice(0, 4).map((c, i) => <span key={i} className="swatch" style={{ background: c }} />)}</div>
-        </div>
+        {(p.materials?.[0]?.name || p.material) && (
+          <div className="card-mat">
+            {p.materials?.[0]?.photo
+              ? <img src={imgThumb(p.materials[0].photo)} alt="" loading="lazy" />
+              : <span className="card-mat-dot" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
+            <span>{p.materials?.[0]?.name || p.material}</span>
+          </div>
+        )}
       </div>
     </article>
   );
@@ -1684,6 +1686,9 @@ function InfoView({ settings, onShop }) {
           <div className="craft-card" key={n}><span className="craft-no">{n}</span><h3>{t}</h3><p>{d}</p></div>
         ))}
       </div>
+
+      <h2 className="info-h2 info-h2-center">Вопросы и ответы</h2>
+      <div className="info-faq"><FAQ /></div>
 
       <div className="info-contacts-wrap">
         <div className="info-contacts">
@@ -2687,11 +2692,6 @@ const css = `
 .card-price{font-size:14px;display:flex;gap:8px;align-items:baseline;white-space:nowrap;flex-shrink:0}
 .old{color:var(--ink-soft);text-decoration:line-through;font-size:13px}
 .sale-price{color:var(--accent);font-weight:600}
-.card-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px}
-.card-sizes{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
-.card-sizes span{font-size:11px;color:var(--ink-soft);border:1px solid var(--line);border-radius:4px;padding:2px 7px}
-.swatches{display:flex;gap:6px;flex-shrink:0}
-.swatch{width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
 
 .product{max-width:1180px;margin:0 auto;padding:26px 32px 80px}
 @media(max-width:760px){.product{padding:20px 20px 60px}}
@@ -3148,7 +3148,7 @@ html{scroll-behavior:smooth}
 .mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;transition:background-color .6s ease}
 
 /* первый экран */
-.bhero{min-height:clamp(520px,80svh,760px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:56px 24px 64px;position:relative;overflow:hidden}
+.bhero{min-height:clamp(460px,70svh,640px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:44px 24px 52px;position:relative;overflow:hidden}
 .bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,38%),rgba(var(--glow),.12),transparent 68%);transition:background .1s}
 .bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(340px,52vw,660px);aspect-ratio:1.033/1;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;opacity:.07;pointer-events:none;user-select:none}
 .bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
@@ -3192,11 +3192,8 @@ html{scroll-behavior:smooth}
 .drop-empty{color:var(--ink-soft);text-align:center;padding:60px 0}
 
 /* вещь дропа */
-.drop-list{display:flex;flex-direction:column;gap:88px}
 .piece{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
-.piece-flip{direction:rtl}
-.piece-flip>*{direction:ltr}
-@media(max-width:820px){.piece,.piece-flip{grid-template-columns:1fr;gap:22px;direction:ltr}}
+@media(max-width:820px){.piece{grid-template-columns:1fr;gap:22px}}
 .piece-media{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff;cursor:pointer;display:block;width:100%;transition:transform .35s ease,box-shadow .35s ease;will-change:transform}
 .piece-media:hover{box-shadow:0 30px 70px rgba(var(--glow),.22)}
 .piece-glow{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(260px circle at var(--gx,50%) var(--gy,40%),rgba(var(--glow),.16),transparent 62%)}
@@ -3244,7 +3241,6 @@ html{scroll-behavior:smooth}
 .luxe-tease p{max-width:480px;color:var(--ink-soft);font-size:14.5px;line-height:1.7}
 
 /* доп. информация */
-.info-block{max-width:760px;margin:0 auto;padding:90px 32px 20px}
 @media(max-width:760px){.info-block{padding:60px 20px 10px}}
 .faq{border-top:1px solid var(--line)}
 .faq-item{border-bottom:1px solid var(--line)}
@@ -3368,7 +3364,6 @@ html{scroll-behavior:smooth}
   /* цифры в 2 колонки крупнее */
 
   /* вещь дропа: фото сверху, всё крупно, кнопка широкая */
-  .drop-list{gap:56px}
   .piece-no{font-size:34px;margin-bottom:8px}
   .piece-name{font-size:26px}
   .piece-desc{font-size:14px}
@@ -3519,7 +3514,7 @@ html{scroll-behavior:smooth}
 /* мягкое свечение вокруг активной вкладки уже задано box-shadow */
 
 /* плавная смена темы для крупных тёмных блоков */
-.drop,.info-block,.ticker{transition:background .8s ease}
+.drop,.ticker{transition:background .8s ease}
 
 /* переключатель линий в hero */
 .hero-lines{display:inline-flex;gap:6px;padding:5px;border:1px solid var(--line);border-radius:100px;background:var(--card);margin:0 auto 22px;position:relative;z-index:2}
@@ -3639,6 +3634,21 @@ html{scroll-behavior:smooth}
 .piece-desc.xt-open{display:block;-webkit-line-clamp:unset;overflow:visible}
 .xt-more{display:inline-block;margin:-8px 0 14px;font-size:12.5px;letter-spacing:.04em;color:var(--accent);border-bottom:1px solid currentColor;padding-bottom:1px;transition:opacity .2s}
 .xt-more:hover{opacity:.7}
+
+/* журнальная сетка коллекции: 3 — 2 крупнее — 3 */
+.drop-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:52px 28px;margin-top:64px}
+.drop-grid>*{grid-column:span 2;min-width:0}
+.drop-grid>*:nth-child(5n+4),.drop-grid>*:nth-child(5n+5){grid-column:span 3}
+@media(max-width:900px){.drop-grid{grid-template-columns:1fr 1fr;gap:34px 16px;margin-top:44px}.drop-grid>*{grid-column:auto!important}}
+
+/* чип материала на карточке */
+.card-mat{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:5px 11px 5px 6px;border:1px solid var(--line);border-radius:100px;background:var(--card);font-size:12px;color:var(--ink-soft);max-width:100%}
+.card-mat img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0}
+.card-mat-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
+.card-mat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* FAQ на странице «О бренде» */
+.info-faq{max-width:760px;margin:0 auto 46px}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
