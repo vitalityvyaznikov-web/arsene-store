@@ -81,6 +81,7 @@ const DEFAULT_SETTINGS = {
 const LINES = ["Archive", "Quiet Luxe"];
 const LINE_LABELS = { "Archive": "Rovelle Heritage", "Quiet Luxe": "Rovelle Quiet Luxe" };
 const LINE_SHORT = { "Archive": "Heritage", "Quiet Luxe": "Quiet Luxe" };  // короткое имя линии
+const plural = (n, one, few, many) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many}`;
 const catLabel = (c) => (c === "Всё" ? "Вся коллекция" : LINE_SHORT[c] || c);
 const CATEGORIES = ["Всё", ...LINES];
 const SHOP_CATS = LINES;
@@ -296,7 +297,7 @@ function Store() {
     if (!settings) return;
     const brand = BRAND;
     const p = view === "product" && selectedId ? byId(selectedId) : null;
-    const titles = { catalog: `${brand} — мужская одежда`, cart: `Корзина — ${brand}`, checkout: `Оформление предзаказа — ${brand}`,
+    const titles = { catalog: `${brand} — мужская одежда`, shop: `Коллекция — ${brand}`, cart: `Корзина — ${brand}`, checkout: `Оформление предзаказа — ${brand}`,
       favorites: `Избранное — ${brand}`, info: `О магазине — ${brand}`, account: `Мой аккаунт — ${brand}`,
       orders: `Мои заказы — ${brand}`, admin: `Админ-панель — ${brand}`, success: `Заказ оформлен — ${brand}` };
     document.title = p ? `${p.name} — ${brand}` : (titles[view] || brand);
@@ -321,7 +322,7 @@ function Store() {
     try { if (window.ym) window.ym(window.__ym_id, "hit", hash); } catch (e) {}
   };
   const openProduct = (id) => { setSelectedId(id); go("product", id); };
-  const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("catalog"); };
+  const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("shop"); };
 
   // читаем адрес при загрузке и по кнопке «Назад»
   useEffect(() => {
@@ -333,7 +334,7 @@ function Store() {
       const h = raw.replace(/^#\/?/, "");
       const [seg, id] = h.split("/");
       if (seg === "product" && id) { setSelectedId(Number(id)); setView("product"); }
-      else if (["cart", "checkout", "favorites", "info", "account", "orders", "login", "admin", "success"].includes(seg)) setView(seg);
+      else if (["shop", "cart", "checkout", "favorites", "info", "account", "orders", "login", "admin", "success"].includes(seg)) setView(seg);
       else setView("catalog");
       setFade(true);
     };
@@ -525,8 +526,12 @@ function Store() {
 
       <main className={fade ? "page page-in" : "page"}>
       {view === "catalog" && (
-        <CatalogView settings={settings} products={products} activeCat={activeCat} setActiveCat={setActiveCat}
-          onOpen={openProduct} onInfo={() => go("info")} query={query} setQuery={setQuery} favorites={favorites} onFav={toggleFav} />
+        <CatalogView settings={settings} products={products}
+          onLine={(l) => openCatalog(l)} onShop={() => openCatalog("Всё")} onInfo={() => go("info")} />
+      )}
+      {view === "shop" && (
+        <ShopView settings={settings} products={products} activeCat={activeCat} setActiveCat={setActiveCat}
+          onOpen={openProduct} query={query} setQuery={setQuery} favorites={favorites} onFav={toggleFav} />
       )}
       {view === "product" && selectedId && byId(selectedId) && (
         (() => {
@@ -688,7 +693,7 @@ function Monogram({ size = 150 }) {
 }
 
 /* --------- Первый экран: свет за курсором + параллакс --------- */
-function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
+function BrandHero({ settings, onShop, onInfo }) {
   const ref = React.useRef(null);
   const markRef = React.useRef(null);
 
@@ -714,18 +719,9 @@ function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
       <div className="bhero-mark" ref={markRef} aria-hidden="true" />
       <h1 className="bhero-name"><Wordmark animate /></h1>
       <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
-      <Reveal delay={600}>
-        <div className="hero-lines">
-          {[["Archive", "Heritage"], ["Quiet Luxe", "Quiet Luxe"]].map(([val, label]) => (
-            <button key={val} className={`hero-line-btn ${activeCat === val ? "on" : ""}`} onClick={() => setActiveCat(val)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </Reveal>
       <Reveal delay={850}>
         <div className="bhero-cta">
-          <button className="btn-primary" onClick={onDrop}>Смотреть коллекцию <ArrowRight size={15} /></button>
+          <button className="btn-primary" onClick={onShop}>Смотреть коллекцию <ArrowRight size={15} /></button>
           <button className="btn-ghost" onClick={onInfo}>О бренде</button>
         </div>
       </Reveal>
@@ -735,40 +731,10 @@ function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
   );
 }
 
-/* --------- «Живое» фото вещи: наклон, вторая картинка, блик --------- */
-function PieceMedia({ p, onOpen }) {
-  const gallery = getGallery(p);
-  const alt = gallery[1]?.src ? gallery[1] : null;
-  const ref = React.useRef(null);
-
-  const move = (e) => {
-    const el = ref.current;
-    if (!el || window.matchMedia("(pointer: coarse)").matches) return;
-    const r = el.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    el.style.transform = `perspective(900px) rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 4).toFixed(2)}deg)`;
-    el.style.setProperty("--gx", `${e.clientX - r.left}px`);
-    el.style.setProperty("--gy", `${e.clientY - r.top}px`);
-  };
-  const leave = () => { if (ref.current) ref.current.style.transform = ""; };
-
-  return (
-    <button className="piece-media" ref={ref} onMouseMove={move} onMouseLeave={leave} onClick={onOpen} aria-label={p.name}>
-      <Media p={p} img={gallery[0]} large />
-      {alt && <img className="piece-alt" src={alt.src} alt="" loading="lazy" />}
-      <span className="piece-glow" aria-hidden="true" />
-      <span className="piece-shine" aria-hidden="true" />
-      {p.tag && <span className="piece-tag">{p.tag}</span>}
-      <span className="piece-view"><Search size={15} /> Открыть</span>
-    </button>
-  );
-}
-
 /* --------- Дополнительная информация (аккордеон) --------- */
 const FAQ_ITEMS = [
   ["Доставка", "Курьером по городу, СДЭК по всей России или самовывоз. Обычный срок — 1–3 дня. При заказе от 5 000 ₽ доставка бесплатная."],
-  ["Оплата", "СБП онлайн-переводом или при получении. После оформления открывается чат с менеджером в Telegram — он подтверждает оплату и заказ, обычно в течение часа."],
+  ["Оплата", "Предзаказ с полной оплатой. После оформления с вами связывается менеджер и принимает оплату. Когда подключим онлайн-оплату, карта будет приниматься прямо на сайте."],
   ["Возврат", "14 дней на возврат, если вещь не подошла: без следов носки, с сохранённой комплектацией. Напишите менеджеру — организуем обратную доставку."],
   ["Как мы отбираем вещи", "Каждая позиция проходит ручной отбор: смотрим швы, фактуру, честность денима и посадку. В коллекцию попадает малая часть из того, что мы находим."],
 ];
@@ -789,25 +755,17 @@ function FAQ() {
   );
 }
 
-/* ============================ ГЛАВНАЯ БРЕНДА ============================ */
-function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onInfo, query, setQuery, favorites, onFav }) {
-  const q = query.trim().toLowerCase();
-  const inLine = (p) => activeCat === "Всё" || p.cat === activeCat;
-  const list = products.filter((p) => inLine(p) &&
-    (!q || `${p.name} ${p.brand || ""} ${p.material || ""} ${typeLabel(p.type)}`.toLowerCase().includes(q)));
-
-  const scrollToDrop = (line) => {
-    if (line) setActiveCat(line);
-    setTimeout(() => document.getElementById("drop")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
-  };
-
-  const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0;
-  const featured = list[0];
+function CatalogView({ settings, products, onLine, onShop, onInfo }) {
   const tickerWords = ["Heritage", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
+  const coverFor = (line) => {
+    const p = products.find((x) => x.cat === line && (x.images || []).length > 0);
+    return p ? getGallery(p)[0].src : null;
+  };
+  const countFor = (line) => products.filter((x) => x.cat === line).length;
 
   return (
     <>
-      <BrandHero settings={settings} activeCat={activeCat} setActiveCat={setActiveCat} onDrop={() => scrollToDrop("Archive")} onInfo={onInfo} />
+      <BrandHero settings={settings} onShop={onShop} onInfo={onInfo} />
 
       {/* ---------- Бегущая строка ---------- */}
       <div className="ticker" aria-hidden="true">
@@ -818,129 +776,86 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         </div>
       </div>
 
-      {/* ---------- Дроп ---------- */}
-      <section className="drop" id="drop">
-        <Reveal>
-          <div className="drop-head">
-            <div>
-              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 2" : "Коллекция 001 · Heritage"}</div>
-              <h2 className="drop-title">{activeCat === "Quiet Luxe" ? "Quiet Luxe" : "Первые вещи"}</h2>
-            </div>
-            <div className="drop-tools">
-              <div className="line-tabs">
-                {CATEGORIES.map((c) => (
-                  <button key={c} className={activeCat === c ? "on" : ""} onClick={() => setActiveCat(c)}>{catLabel(c)}</button>
-                ))}
-              </div>
-              <div className="search-wrap">
-                <Search size={15} />
-                <input id="search-input" placeholder="Поиск" value={query} onChange={(e) => setQuery(e.target.value)} />
-              </div>
-            </div>
-          </div>
-        </Reveal>
-
-        {luxeEmpty ? (
-          <Reveal>
-            <div className="luxe-tease">
-              <Monogram size={130} />
-              <h3>Линия готовится</h3>
-              <p>Поло из благородного хлопка, брюки с идеальной посадкой, полузамки и лоферы. Без логотипов — только ткань и крой. Следите в Telegram, чтобы не пропустить запуск.</p>
-              {settings.telegram && <a className="btn-primary" href={settings.telegram} target="_blank" rel="noreferrer"><Send size={15} /> Ждать в Telegram</a>}
-            </div>
-          </Reveal>
-        ) : list.length === 0 ? (
-          <p className="drop-empty">{q ? "Ничего не нашлось — попробуйте другой запрос." : "Вещи скоро появятся."}</p>
-        ) : (
-          <>
-            <Reveal className="rv-left">
-              <article className="piece">
-                <PieceMedia p={featured} onOpen={() => onOpen(featured.id)} />
-                <div className="piece-info">
-                  <div className="piece-no">Nº 001</div>
-                  <h3 className="piece-name">{featured.name}</h3>
-                  <div className="piece-meta">{LINE_LABELS[featured.cat] || featured.cat} · {typeLabel(featured.type)}</div>
-                  <ExpandableText text={featured.desc} className="piece-desc" />
-                  {(featured.materials && featured.materials.length > 0) ? (
-                    <div className="piece-mats">
-                      {featured.materials.map((m, mi) => (
-                        <div className="piece-material" key={mi}>
-                          <div className="pm-swatch">
-                            {m.photo ? <img src={imgThumb(m.photo)} alt={m.name} loading="lazy" />
-                              : <span className="pm-color" style={{ background: (featured.colors && featured.colors[0]) || "#8f8677" }} />}
-                          </div>
-                          <div className="pm-text">
-                            <span className="pm-label">Материал</span>
-                            <span className="pm-value">{m.name}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : featured.material && (
-                    <div className="piece-material">
-                      <div className="pm-swatch">
-                        {getGallery(featured).length > 1
-                          ? <img src={getGallery(featured)[getGallery(featured).length - 1].thumb} alt="Материал" loading="lazy" />
-                          : <span className="pm-color" style={{ background: (featured.colors && featured.colors[0]) || "#8f8677" }} />}
-                      </div>
-                      <div className="pm-text">
-                        <span className="pm-label">Материал</span>
-                        <span className="pm-value">{featured.material}</span>
-                      </div>
-                    </div>
-                  )}
-                  <div className="piece-sizes">{(featured.sizes || []).map((sz) => <span key={sz}>{sz}</span>)}</div>
-                  <div className="piece-row">
-                    <div className="piece-price">
-                      {featured.oldPrice > 0 && <span className="old">{money(featured.oldPrice)}</span>}
-                      <span className={featured.oldPrice > 0 ? "sale-price" : ""}>{money(featured.price)}</span>
-                    </div>
-                    <div className="piece-actions">
-                      <button className={`fav-btn ${favorites.includes(featured.id) ? "fav-on" : ""}`} onClick={() => onFav(featured.id)} aria-label="В избранное">
-                        <Heart size={17} fill={favorites.includes(featured.id) ? "currentColor" : "none"} />
-                      </button>
-                      <button className="btn-primary" onClick={() => onOpen(featured.id)}>Смотреть вещь</button>
-                    </div>
-                  </div>
-                  {featured.stock > 0 && featured.stock <= 3 && <div className="piece-low">Осталось {featured.stock} шт</div>}
-                  {featured.stock <= 0 && <div className="piece-out">Распродано</div>}
-                </div>
-              </article>
-            </Reveal>
-
-            {list.length > 1 && (
-              <div className="drop-grid">
-                {list.slice(1).map((p, i) => (
-                  <Reveal key={p.id} delay={(i % 3) * 70}>
-                    <ProductCard p={p} onOpen={() => onOpen(p.id)} isFav={favorites.includes(p.id)} onFav={() => onFav(p.id)} />
-                  </Reveal>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+      {/* ---------- Два входа: Heritage / Quiet Luxe ---------- */}
+      <section className="doors">
+        {[["Archive", "Heritage", "door-heritage"], ["Quiet Luxe", "Quiet Luxe", "door-luxe"]].map(([line, label, cls]) => {
+          const cover = coverFor(line);
+          const n = countFor(line);
+          return (
+            <button key={line} className={`door ${cls} ${cover ? "" : "door-empty"}`} onClick={() => onLine(line)}>
+              {cover
+                ? <img className="door-img" src={cover} alt={label} loading="lazy" />
+                : <span className="door-mark" aria-hidden="true" />}
+              <span className="door-shade" aria-hidden="true" />
+              <span className="door-info">
+                <span className="door-name">{label}</span>
+                <span className="door-sub">{n > 0 ? plural(n, "вещь", "вещи", "вещей") : "скоро"}</span>
+              </span>
+              <span className="door-go"><ArrowRight size={20} /></span>
+            </button>
+          );
+        })}
       </section>
 
-      {/* ---------- Quiet Luxe — тёмный тизер ---------- */}
-      <section className="luxe" onMouseMove={(e) => {
-        const el = e.currentTarget; const r = el.getBoundingClientRect();
-        el.style.setProperty("--mx", `${e.clientX - r.left}px`);
-        el.style.setProperty("--my", `${e.clientY - r.top}px`);
-      }}>
-        <div className="luxe-glow" aria-hidden="true" />
-        <Reveal>
-          <div className="luxe-inner">
-            <div className="luxe-eyebrow">Линия 2 · скоро</div>
-            <h2 className="luxe-title">Quiet <em>Luxe</em></h2>
-            {settings.telegram && (
-              <a className="luxe-btn" href={settings.telegram} target="_blank" rel="noreferrer">
-                <Send size={15} /> Узнать о запуске первым
-              </a>
-            )}
-          </div>
-        </Reveal>
-      </section>
+      {/* ---------- Одна кнопка ---------- */}
+      <div className="home-cta">
+        <button className="btn-ghost" onClick={onShop}>Вся коллекция <ArrowRight size={15} /></button>
+      </div>
     </>
+  );
+}
+
+/* --------------------------- Каталог (отдельная страница) --------------------------- */
+function ShopView({ settings, products, activeCat, setActiveCat, onOpen, query, setQuery, favorites, onFav }) {
+  const q = query.trim().toLowerCase();
+  const inLine = (p) => activeCat === "Всё" || p.cat === activeCat;
+  const list = products.filter((p) => inLine(p) &&
+    (!q || `${p.name} ${p.brand || ""} ${p.material || ""} ${typeLabel(p.type)}`.toLowerCase().includes(q)));
+  const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0 && !q;
+
+  return (
+    <section className="shop">
+      <Reveal>
+        <div className="drop-head">
+          <div>
+            <div className="drop-eyebrow">Коллекция 001</div>
+            <h1 className="drop-title">{catLabel(activeCat)}</h1>
+          </div>
+          <div className="drop-tools">
+            <div className="line-tabs">
+              {CATEGORIES.map((c) => (
+                <button key={c} className={activeCat === c ? "on" : ""} onClick={() => setActiveCat(c)}>{catLabel(c)}</button>
+              ))}
+            </div>
+            <div className="search-wrap">
+              <Search size={15} />
+              <input id="search-input" placeholder="Поиск" value={query} onChange={(e) => setQuery(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      </Reveal>
+
+      {luxeEmpty ? (
+        <Reveal>
+          <div className="luxe-tease">
+            <Monogram size={130} />
+            <h3>Линия готовится</h3>
+            <p>Поло из благородного хлопка, брюки с идеальной посадкой, полузамки и лоферы. Без логотипов — только ткань и крой. Следите в Telegram, чтобы не пропустить запуск.</p>
+            {settings.telegram && <a className="btn-primary" href={settings.telegram} target="_blank" rel="noreferrer"><Send size={15} /> Ждать в Telegram</a>}
+          </div>
+        </Reveal>
+      ) : list.length === 0 ? (
+        <p className="drop-empty">{q ? "Ничего не нашлось — попробуйте другой запрос." : "Вещи скоро появятся."}</p>
+      ) : (
+        <div className="shop-grid">
+          {list.map((p, i) => (
+            <Reveal key={p.id} delay={(i % 3) * 70}>
+              <ProductCard p={p} onOpen={() => onOpen(p.id)} isFav={favorites.includes(p.id)} onFav={() => onFav(p.id)} />
+            </Reveal>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1626,23 +1541,6 @@ function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOr
 }
 
 /* --------------------------- О магазине / Контакты --------------------------- */
-/* --------- Текст с разворачиванием («Читать дальше») --------- */
-function ExpandableText({ text, className = "" }) {
-  const [open, setOpen] = useState(false);
-  if (!text) return null;
-  const long = text.length > 130;
-  return (
-    <div className="xt-wrap">
-      <p className={`${className} ${open || !long ? "xt-open" : ""}`}>{text}</p>
-      {long && (
-        <button type="button" className="xt-more" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
-          {open ? "Свернуть" : "Читать дальше"}
-        </button>
-      )}
-    </div>
-  );
-}
-
 function InfoView({ settings, onShop }) {
   const s = settings;
   const contacts = [
@@ -3192,34 +3090,6 @@ html{scroll-behavior:smooth}
 .drop-empty{color:var(--ink-soft);text-align:center;padding:60px 0}
 
 /* вещь дропа */
-.piece{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
-@media(max-width:820px){.piece{grid-template-columns:1fr;gap:22px}}
-.piece-media{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff;cursor:pointer;display:block;width:100%;transition:transform .35s ease,box-shadow .35s ease;will-change:transform}
-.piece-media:hover{box-shadow:0 30px 70px rgba(var(--glow),.22)}
-.piece-glow{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(260px circle at var(--gx,50%) var(--gy,40%),rgba(var(--glow),.16),transparent 62%)}
-.piece-media:hover .piece-glow{opacity:1}
-.piece-view{position:absolute;left:50%;bottom:16px;transform:translateX(-50%) translateY(12px);z-index:3;display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:9px 18px;border-radius:100px;box-shadow:0 8px 22px rgba(0,0,0,.16);opacity:0;transition:opacity .35s,transform .35s cubic-bezier(.2,.7,.2,1)}
-.piece-media:hover .piece-view{opacity:1;transform:translateX(-50%) translateY(0)}
-@media(hover:none){.piece-view{display:none}}
-.piece-media .garment{transition:transform .8s cubic-bezier(.2,.7,.2,1)}
-.piece-media:hover .garment{transform:scale(1.05)}
-.piece-alt{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;opacity:0;transition:opacity .45s ease}
-.piece-media:hover .piece-alt{opacity:1}
-.piece-shine{position:absolute;top:0;bottom:0;left:-70%;width:45%;background:linear-gradient(78deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-12deg);transition:none;pointer-events:none}
-.piece-media:hover .piece-shine{left:130%;transition:left .8s ease}
-.piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px;z-index:2}
-.piece-no{font-family:var(--serif);font-size:44px;color:var(--accent);line-height:1;margin-bottom:14px}
-.piece-no span{font-size:16px;color:var(--ink-soft)}
-.piece-name{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3.2vw,34px);line-height:1.15;margin-bottom:8px;transition:color .3s}
-.piece-meta{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px}
-.piece-desc{color:var(--ink-soft);font-size:14.5px;line-height:1.7;margin-bottom:14px;max-width:440px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.piece-sizes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
-.piece-sizes span{border:1px solid var(--line);border-radius:2px;padding:4px 10px;font-size:12px;color:var(--ink-soft)}
-.piece-row{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
-.piece-price{font-family:var(--serif);font-size:22px;display:flex;gap:10px;align-items:baseline}
-.piece-actions{display:flex;gap:10px;align-items:center}
-.piece-low{margin-top:12px;font-size:12px;color:#8a5a1a}
-.piece-out{margin-top:12px;font-size:12px;color:var(--accent)}
 
 /* лента кадров */
 @media(max-width:760px){.strip-shot{width:150px}.strip-track{padding:0 20px}}
@@ -3228,14 +3098,6 @@ html{scroll-behavior:smooth}
 @media(max-width:820px){.craft-grid{grid-template-columns:1fr}}
 
 /* quiet luxe тизер */
-.luxe{background:#191512;color:#efe9df;padding:100px 32px;position:relative;overflow:hidden}
-.luxe-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,50%),rgba(201,154,107,.10),transparent 70%)}
-.luxe-inner{max-width:640px;margin:0 auto;text-align:center;position:relative}
-.luxe-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#c99a6b;margin-bottom:20px}
-.luxe-title{font-family:var(--serif);font-weight:400;font-size:clamp(38px,7vw,68px);letter-spacing:.06em;margin-bottom:22px}
-.luxe-title em{font-style:italic;color:#c99a6b}
-.luxe-btn{display:inline-flex;align-items:center;gap:9px;border:1px solid #c99a6b;color:#efe9df;text-decoration:none;padding:14px 26px;border-radius:2px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;transition:background .25s,color .25s}
-.luxe-btn:hover{background:#c99a6b;color:#191512}
 .luxe-tease{text-align:center;padding:40px 20px 60px;display:flex;flex-direction:column;align-items:center;gap:18px}
 .luxe-tease h3{font-family:var(--serif);font-weight:400;font-size:30px}
 .luxe-tease p{max-width:480px;color:var(--ink-soft);font-size:14.5px;line-height:1.7}
@@ -3364,13 +3226,6 @@ html{scroll-behavior:smooth}
   /* цифры в 2 колонки крупнее */
 
   /* вещь дропа: фото сверху, всё крупно, кнопка широкая */
-  .piece-no{font-size:34px;margin-bottom:8px}
-  .piece-name{font-size:26px}
-  .piece-desc{font-size:14px}
-  .piece-row{flex-direction:column;align-items:stretch;gap:14px}
-  .piece-actions{width:100%}
-  .piece-actions .btn-primary{flex:1}
-  .piece-price{justify-content:flex-start}
 
   /* карта манифеста компактнее */
 
@@ -3402,14 +3257,11 @@ html{scroll-behavior:smooth}
 
 @media(max-width:520px){
   .ticker-item{font-size:13px}
-  .luxe{padding:70px 22px}
   .to-top{right:14px;bottom:14px;width:42px;height:42px}
 }
 
 /* аккуратные тач-таргеты */
 @media(hover:none){
-  .piece-media:hover .garment{transform:none}
-  .piece-alt{display:none}
 }
 
 /* зум по наведению */
@@ -3517,22 +3369,8 @@ html{scroll-behavior:smooth}
 .drop,.ticker{transition:background .8s ease}
 
 /* переключатель линий в hero */
-.hero-lines{display:inline-flex;gap:6px;padding:5px;border:1px solid var(--line);border-radius:100px;background:var(--card);margin:0 auto 22px;position:relative;z-index:2}
-.hero-line-btn{padding:9px 22px;border-radius:100px;font-size:13px;letter-spacing:.04em;color:var(--ink-soft);transition:color .3s;position:relative}
-.hero-line-btn.on{color:#fff}
-.hero-line-btn.on::before{content:"";position:absolute;inset:0;background:var(--accent);border-radius:100px;z-index:-1;box-shadow:0 6px 18px rgba(var(--glow),.35);animation:pillpop .4s cubic-bezier(.2,.9,.3,1.3)}
-@keyframes pillpop{0%{transform:scale(.85)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
-.hero-line-btn:not(.on):hover{color:var(--ink)}
 
 /* материал вещи в каталоге */
-.piece-material{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);max-width:340px;transition:border-color .3s,transform .3s}
-.piece-material:hover{border-color:var(--accent);transform:translateX(3px)}
-.pm-swatch{width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
-.pm-swatch img{width:100%;height:100%;object-fit:cover;display:block}
-.pm-color{display:block;width:100%;height:100%}
-.pm-text{display:flex;flex-direction:column;gap:2px;min-width:0}
-.pm-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
-.pm-value{font-size:13px;color:var(--ink);line-height:1.4}
 
 /* редактор материалов в админке */
 .mat-editor{display:flex;flex-direction:column;gap:10px}
@@ -3548,10 +3386,6 @@ html{scroll-behavior:smooth}
 .mat-add:hover{border-color:var(--accent);color:var(--accent)}
 
 /* несколько материалов в каталоге — стопкой */
-.piece-mats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
-.piece-mats .piece-material{margin-bottom:0;max-width:none;padding:6px 12px 6px 7px;gap:9px}
-.piece-mats .pm-swatch{width:32px;height:32px;border-radius:7px}
-.piece-mats .pm-label{display:none}
 
 /* материалы в аккордеоне товара */
 .acc-mats{display:flex;flex-direction:column;gap:10px}
@@ -3630,16 +3464,8 @@ html{scroll-behavior:smooth}
 .craft-card p{font-size:13.5px;line-height:1.65;color:var(--ink-soft)}
 
 /* «Читать дальше» в каталоге */
-.xt-wrap{max-width:440px}
-.piece-desc.xt-open{display:block;-webkit-line-clamp:unset;overflow:visible}
-.xt-more{display:inline-block;margin:-8px 0 14px;font-size:12.5px;letter-spacing:.04em;color:var(--accent);border-bottom:1px solid currentColor;padding-bottom:1px;transition:opacity .2s}
-.xt-more:hover{opacity:.7}
 
 /* журнальная сетка коллекции: 3 — 2 крупнее — 3 */
-.drop-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:52px 28px;margin-top:64px}
-.drop-grid>*{grid-column:span 2;min-width:0}
-.drop-grid>*:nth-child(5n+4),.drop-grid>*:nth-child(5n+5){grid-column:span 3}
-@media(max-width:900px){.drop-grid{grid-template-columns:1fr 1fr;gap:34px 16px;margin-top:44px}.drop-grid>*{grid-column:auto!important}}
 
 /* чип материала на карточке */
 .card-mat{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:5px 11px 5px 6px;border:1px solid var(--line);border-radius:100px;background:var(--card);font-size:12px;color:var(--ink-soft);max-width:100%}
@@ -3649,6 +3475,41 @@ html{scroll-behavior:smooth}
 
 /* FAQ на странице «О бренде» */
 .info-faq{max-width:760px;margin:0 auto 46px}
+
+.piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px;z-index:3}
+
+/* два входа на главной */
+.doors{display:grid;grid-template-columns:1fr 1fr;min-height:clamp(420px,64vh,620px)}
+@media(max-width:820px){.doors{grid-template-columns:1fr}.door{min-height:300px}}
+.door{position:relative;overflow:hidden;cursor:pointer;display:block;background:var(--card);text-align:left}
+.door-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#fff;transition:transform 1.1s cubic-bezier(.2,.7,.2,1)}
+.door:hover .door-img{transform:scale(1.05)}
+.door-mark{position:absolute;inset:0;background-color:currentColor;-webkit-mask:url(/logo-mark.svg) center/38% no-repeat;mask:url(/logo-mark.svg) center/38% no-repeat;opacity:.1;transition:opacity .4s}
+.door:hover .door-mark{opacity:.16}
+.door-shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(12,16,26,.6))}
+.door-heritage{color:#2f4a73}
+.door-luxe{background:#16130f;color:#c99a6b}
+.door-luxe .door-shade{background:linear-gradient(180deg,transparent 40%,rgba(8,6,4,.72))}
+.door-info{position:absolute;left:34px;bottom:30px;z-index:2;display:flex;flex-direction:column;gap:6px}
+.door-name{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.4vw,52px);color:#fff;line-height:1.05}
+.door-sub{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.door-go{position:absolute;right:28px;bottom:30px;z-index:2;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);backdrop-filter:blur(6px);display:grid;place-items:center;color:#fff;transition:transform .4s cubic-bezier(.2,.7,.2,1),background .3s}
+.door:hover .door-go{transform:translateX(6px);background:rgba(255,255,255,.24)}
+.door-empty .door-shade{display:none}
+.door-empty .door-name{color:var(--ink)}
+.door-empty .door-sub{color:var(--ink-soft)}
+.door-empty .door-go{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.door-luxe.door-empty{background:#16130f}
+.door-luxe.door-empty .door-name{color:#efe7d8}
+.door-luxe.door-empty .door-sub{color:rgba(239,231,216,.6)}
+.door-luxe.door-empty .door-go{background:rgba(201,154,107,.16);color:#c99a6b}
+.home-cta{display:flex;justify-content:center;padding:44px 20px 78px}
+
+/* страница каталога */
+.shop{max-width:1280px;margin:0 auto;padding:44px 32px 100px}
+@media(max-width:760px){.shop{padding:28px 18px 70px}}
+.shop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:52px 26px;margin-top:8px}
+@media(max-width:1000px){.shop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 16px}}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
