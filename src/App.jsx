@@ -54,15 +54,15 @@ const DEFAULT_SETTINGS = {
   heroTitle1: "Тихая",
   heroTitleEm: "роскошь",
   heroSub: "Один бренд — два мира. Архивный винтаж для смелых и спокойный люкс для тех, кто уже всё доказал.",
-  philosophyTitle: "Философия",
-  philosophyText:
-    "Rovelle — это одежда без логомании. Мы верим, что вещь должна говорить фактурой, швами и посадкой, а не надписью на груди. Каждая позиция отбирается вручную: архивные мотивы, честные материалы, ограниченные партии.",
   line1Name: "Heritage",
   line1Desc: "Винтаж, архивные мотивы и Стокгольм. Вещи с историей — для тех, кто экспериментирует.",
   line2Name: "Quiet Luxe",
   line2Desc: "Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.",
   luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
   manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
+  philosophyTitle: "Философия",
+  philosophyText:
+    "Rovelle — это одежда без логомании. Мы верим, что вещь должна говорить фактурой, швами и посадкой, а не надписью на груди. Каждая позиция отбирается вручную: архивные мотивы, честные материалы, ограниченные партии.",
   phone: "+7 900 000-00-00",
   email: "hello@rovelle.moscow",
   address: "Москва",
@@ -726,7 +726,7 @@ function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
       <Reveal delay={850}>
         <div className="bhero-cta">
           <button className="btn-primary" onClick={onDrop}>Смотреть коллекцию <ArrowRight size={15} /></button>
-          <button className="btn-ghost" onClick={onInfo}>Философия</button>
+          <button className="btn-ghost" onClick={onInfo}>О бренде</button>
         </div>
       </Reveal>
       <div className="bhero-est">{settings.heroEyebrow} · <RotatingWord words={["Архив", "Стокгольм", "Винтаж", "Без логотипов"]} /></div>
@@ -803,7 +803,6 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
   const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0;
   const tickerWords = ["Heritage", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
-  const shots = products.flatMap((p) => (p.images || []).map((im, i) => ({ src: imgThumb(im), id: `${p.id}-${i}`, pid: p.id, name: p.name })));
 
   return (
     <>
@@ -817,31 +816,6 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
           ))}
         </div>
       </div>
-
-      {/* ---------- Две линии — два мира ---------- */}
-      <section className="lines">
-        <button className="line-panel line-archive" onClick={() => scrollToDrop("Archive")}>
-          <span className="line-no">Линия 1</span>
-          <span className="line-name">{settings.line1Name || "Heritage"}</span>
-          <span className="line-desc">{settings.line1Desc}</span>
-          <span className="line-go">Смотреть вещи <ArrowRight size={14} /></span>
-        </button>
-        <button className="line-panel line-luxe" onClick={() => scrollToDrop("Quiet Luxe")}>
-          <span className="line-no">Линия 2</span>
-          <span className="line-name">{settings.line2Name || "Quiet Luxe"}</span>
-          <span className="line-desc">{settings.line2Desc}</span>
-          <span className="line-go">Скоро <ArrowRight size={14} /></span>
-        </button>
-      </section>
-
-      {/* ---------- Цифры бренда ---------- */}
-      <section className="stats">
-        {[["001", "номер коллекции"], ["2", "линии бренда"], ["14", "дней на возврат"], ["100%", "ручной отбор"]].map(([n, l], i) => (
-          <Reveal key={l} delay={i * 90}>
-            <div className="stat"><span className="stat-n">{n}</span><span className="stat-l">{l}</span></div>
-          </Reveal>
-        ))}
-      </section>
 
       {/* ---------- Дроп ---------- */}
       <section className="drop" id="drop">
@@ -880,14 +854,6 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
           <div className="drop-list">
             {list.map((p, i) => (
               <React.Fragment key={p.id}>
-              {i === 2 && (
-                <Reveal className="manifesto-card-wrap">
-                  <div className="manifesto-card">
-                    <Monogram size={92} />
-                    <p>{(settings.manifesto || "Мы не печатаем логотипы.\nМы прошиваем историю.").split("\n").map((ln, k) => <React.Fragment key={k}>{k > 0 && <br />}{ln}</React.Fragment>)}</p>
-                  </div>
-                </Reveal>
-              )}
               <Reveal delay={(i % 2) * 80} className={i % 2 ? "rv-right" : "rv-left"}>
                 <article className={`piece ${i % 2 ? "piece-flip" : ""}`}>
                   <PieceMedia p={p} onOpen={() => onOpen(p.id)} />
@@ -895,7 +861,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
                     <div className="piece-no">{String(i + 1).padStart(2, "0")} <span>/ {String(list.length).padStart(2, "0")}</span></div>
                     <h3 className="piece-name">{p.name}</h3>
                     <div className="piece-meta">{LINE_LABELS[p.cat] || p.cat} · {typeLabel(p.type)}</div>
-                    <p className="piece-desc">{p.desc}</p>
+                    <ExpandableText text={p.desc} className="piece-desc" />
                     {(p.materials && p.materials.length > 0) ? (
                       <div className="piece-mats">
                         {p.materials.map((m, mi) => (
@@ -948,35 +914,6 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         )}
       </section>
 
-      {/* ---------- Лента кадров ---------- */}
-      {shots.length > 1 && (
-        <section className="strip" aria-label="Кадры коллекции">
-          <div className="strip-track">
-            {shots.map((sh) => (
-              <button key={sh.id} className="strip-shot" onClick={() => onOpen(sh.pid)} title={sh.name}>
-                <img src={sh.src} alt={sh.name} loading="lazy" />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ---------- Что мы проверяем ---------- */}
-      <section className="craft">
-        <Reveal><h2 className="craft-title">{settings.philosophyText || "Мы отбираем каждую вещь вручную — за фактуру, крой и историю, а не за логотип."}</h2></Reveal>
-        <div className="craft-grid">
-          {[
-            ["01", "Швы и фактуры", "Архивные стирки, честный деним, необычные обработки. Вещь интересно рассматривать вблизи."],
-            ["02", "История вещи", "Каждая позиция выглядит как архивная находка, но сделана как новая — и продумана до мелочей."],
-            ["03", "Посадка", "Стокгольмская чистота силуэта. Никакого визуального шума — форма говорит сама."],
-          ].map(([n, t, d], i) => (
-            <Reveal key={n} delay={i * 100}>
-              <div className="craft-card"><span className="craft-no">{n}</span><h3>{t}</h3><p>{d}</p></div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
       {/* ---------- Quiet Luxe — тёмный тизер ---------- */}
       <section className="luxe" onMouseMove={(e) => {
         const el = e.currentTarget; const r = el.getBoundingClientRect();
@@ -988,7 +925,6 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
           <div className="luxe-inner">
             <div className="luxe-eyebrow">Линия 2 · скоро</div>
             <h2 className="luxe-title">Quiet <em>Luxe</em></h2>
-            <p className="luxe-text">{settings.luxeText}</p>
             {settings.telegram && (
               <a className="luxe-btn" href={settings.telegram} target="_blank" rel="noreferrer">
                 <Send size={15} /> Узнать о запуске первым
@@ -1688,6 +1624,23 @@ function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOr
 }
 
 /* --------------------------- О магазине / Контакты --------------------------- */
+/* --------- Текст с разворачиванием («Читать дальше») --------- */
+function ExpandableText({ text, className = "" }) {
+  const [open, setOpen] = useState(false);
+  if (!text) return null;
+  const long = text.length > 130;
+  return (
+    <div className="xt-wrap">
+      <p className={`${className} ${open || !long ? "xt-open" : ""}`}>{text}</p>
+      {long && (
+        <button type="button" className="xt-more" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+          {open ? "Свернуть" : "Читать дальше"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function InfoView({ settings, onShop }) {
   const s = settings;
   const contacts = [
@@ -1701,6 +1654,35 @@ function InfoView({ settings, onShop }) {
       <div className="info-hero">
         <div className="hero-eyebrow">{s.philosophyTitle}</div>
         <p className="info-philosophy">{s.philosophyText}</p>
+      </div>
+
+      <div className="info-manifesto">
+        <Monogram size={84} />
+        <p>{(s.manifesto || "Мы не печатаем логотипы.\nМы прошиваем историю.").split("\n").map((ln, k) => <React.Fragment key={k}>{k > 0 && <br />}{ln}</React.Fragment>)}</p>
+      </div>
+
+      <h2 className="info-h2 info-h2-center">Две линии</h2>
+      <div className="info-lines">
+        <div className="info-line">
+          <h3>{s.line1Name || "Heritage"}</h3>
+          <p>{s.line1Desc}</p>
+        </div>
+        <div className="info-line">
+          <h3>{s.line2Name || "Quiet Luxe"}</h3>
+          <p>{s.line2Desc}</p>
+          {s.luxeText && <p className="info-line-extra">{s.luxeText}</p>}
+        </div>
+      </div>
+
+      <h2 className="info-h2 info-h2-center">Что мы проверяем в каждой вещи</h2>
+      <div className="craft-grid">
+        {[
+          ["01", "Швы и фактуры", "Архивные стирки, честный деним, необычные обработки. Вещь интересно рассматривать вблизи."],
+          ["02", "История вещи", "Каждая позиция выглядит как архивная находка, но сделана как новая — и продумана до мелочей."],
+          ["03", "Посадка", "Стокгольмская чистота силуэта. Никакого визуального шума — форма говорит сама."],
+        ].map(([n, t, d]) => (
+          <div className="craft-card" key={n}><span className="craft-no">{n}</span><h3>{t}</h3><p>{d}</p></div>
+        ))}
       </div>
 
       <div className="info-contacts-wrap">
@@ -2212,15 +2194,15 @@ function SettingsForm({ settings, onSave, onCancel }) {
         </div>
 
         <div className="form-block">
-          <h3 className="block-title">Блоки главной страницы</h3>
+          <h3 className="block-title">Страница «О бренде»</h3>
+          <Field label="Манифест (2 строки)"><textarea rows={2} value={f.manifesto} onChange={(e) => set("manifesto", e.target.value)} placeholder={"Мы не печатаем логотипы.\nМы прошиваем историю."} /></Field>
           <div className="row-2">
             <Field label="Линия 1 — название"><input value={f.line1Name} onChange={(e) => set("line1Name", e.target.value)} placeholder="Heritage" /></Field>
             <Field label="Линия 2 — название"><input value={f.line2Name} onChange={(e) => set("line2Name", e.target.value)} placeholder="Quiet Luxe" /></Field>
           </div>
           <Field label="Линия 1 — описание"><textarea rows={2} value={f.line1Desc} onChange={(e) => set("line1Desc", e.target.value)} /></Field>
           <Field label="Линия 2 — описание"><textarea rows={2} value={f.line2Desc} onChange={(e) => set("line2Desc", e.target.value)} /></Field>
-          <Field label="Текст тизера Quiet Luxe"><textarea rows={3} value={f.luxeText} onChange={(e) => set("luxeText", e.target.value)} /></Field>
-          <Field label="Манифест (2 строки)"><textarea rows={2} value={f.manifesto} onChange={(e) => set("manifesto", e.target.value)} placeholder={"Мы не печатаем логотипы.\nМы прошиваем историю."} /></Field>
+          <Field label="Quiet Luxe — подробнее"><textarea rows={3} value={f.luxeText} onChange={(e) => set("luxeText", e.target.value)} /></Field>
         </div>
 
         <div className="form-block">
@@ -3166,7 +3148,7 @@ html{scroll-behavior:smooth}
 .mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;transition:background-color .6s ease}
 
 /* первый экран */
-.bhero{min-height:calc(100vh - 120px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:70px 24px 90px;position:relative;overflow:hidden}
+.bhero{min-height:clamp(520px,80svh,760px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:56px 24px 64px;position:relative;overflow:hidden}
 .bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,38%),rgba(var(--glow),.12),transparent 68%);transition:background .1s}
 .bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(340px,52vw,660px);aspect-ratio:1.033/1;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;opacity:.07;pointer-events:none;user-select:none}
 .bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
@@ -3187,39 +3169,13 @@ html{scroll-behavior:smooth}
 .ticker:hover .ticker-track{animation-play-state:paused}
 
 /* две линии */
-.lines{display:grid;grid-template-columns:1fr 1fr;min-height:460px}
-.line-panel{display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;text-align:left;gap:13px;padding:48px 44px;cursor:pointer;position:relative;overflow:hidden;transition:transform .5s cubic-bezier(.2,.7,.2,1),box-shadow .5s,filter .4s}
 /* фоновая буква-знак, проявляется при наведении */
-.line-panel::before{content:"RV";position:absolute;right:-6%;bottom:-18%;font-family:var(--serif);font-size:clamp(220px,26vw,360px);line-height:1;opacity:.045;transform:translateY(20px) rotate(-4deg);transition:opacity .5s,transform .7s cubic-bezier(.2,.7,.2,1);pointer-events:none}
 /* тонкая линия-акцент, «прочерчивается» снизу вверх слева */
-.line-panel::after{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);transform:scaleY(0);transform-origin:bottom;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
-.line-panel>*{position:relative;transition:transform .5s cubic-bezier(.2,.7,.2,1)}
-.line-panel:hover{transform:translateY(-4px);box-shadow:0 30px 60px rgba(26,22,19,.14);z-index:2}
-.line-panel:hover::before{opacity:.1;transform:translateY(0) rotate(0)}
-.line-panel:hover::after{transform:scaleY(1)}
-.line-panel:hover>*{transform:translateX(8px)}
 /* соседняя панель слегка гаснет, когда наводишь на другую */
-.lines:hover .line-panel:not(:hover){filter:brightness(.97) saturate(.92)}
-.line-archive{background:var(--card);border-right:1px solid var(--line)}
-.line-luxe{background:#191512;color:#efe9df}
-.line-luxe::after{background:#c99a6b}
-.line-luxe::before{color:#c99a6b;opacity:.06}
-.line-luxe:hover::before{opacity:.13}
-.line-no{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--accent)}
-.line-luxe .line-no{color:#c99a6b}
-.line-name{font-family:var(--serif);font-weight:400;font-size:clamp(28px,4vw,44px);line-height:1.05}
-.line-desc{font-size:14px;line-height:1.65;color:var(--ink-soft);max-width:420px}
-.line-luxe .line-desc{color:#b3aa99}
-.line-go{display:inline-flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-top:8px;border-bottom:1px solid currentColor;padding-bottom:3px;transition:gap .3s}
-.line-panel:hover .line-go{gap:13px}
 @media(max-width:820px){.lines{grid-template-columns:1fr}.line-archive{border-right:none;border-bottom:1px solid var(--line)}.line-panel{padding:36px 24px;min-height:230px}.line-panel:hover{transform:none;box-shadow:none}.line-panel:hover>*{transform:none}}
 
 /* цифры */
-.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));max-width:1120px;margin:0 auto;padding:64px 32px 6px;gap:18px}
 @media(max-width:760px){.stats{grid-template-columns:repeat(2,minmax(0,1fr));padding:48px 20px 0}}
-.stat{text-align:center;padding:18px 8px;border-top:1px solid var(--line)}
-.stat-n{display:block;font-family:var(--serif);font-size:clamp(30px,4vw,44px);color:var(--accent);line-height:1.1;margin-bottom:6px}
-.stat-l{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
 
 /* дроп */
 .drop{max-width:1120px;margin:0 auto;padding:90px 32px 40px}
@@ -3259,7 +3215,7 @@ html{scroll-behavior:smooth}
 .piece-no span{font-size:16px;color:var(--ink-soft)}
 .piece-name{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3.2vw,34px);line-height:1.15;margin-bottom:8px;transition:color .3s}
 .piece-meta{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px}
-.piece-desc{color:var(--ink-soft);font-size:14.5px;line-height:1.7;margin-bottom:16px;max-width:440px}
+.piece-desc{color:var(--ink-soft);font-size:14.5px;line-height:1.7;margin-bottom:14px;max-width:440px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .piece-sizes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
 .piece-sizes span{border:1px solid var(--line);border-radius:2px;padding:4px 10px;font-size:12px;color:var(--ink-soft)}
 .piece-row{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
@@ -3269,23 +3225,10 @@ html{scroll-behavior:smooth}
 .piece-out{margin-top:12px;font-size:12px;color:var(--accent)}
 
 /* лента кадров */
-.strip{margin:70px 0 0;padding:26px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--card)}
-.strip-track{display:flex;gap:14px;overflow-x:auto;padding:0 32px;scrollbar-width:thin;scroll-snap-type:x mandatory}
-.strip-shot{flex:0 0 auto;width:190px;aspect-ratio:1/1;border-radius:3px;overflow:hidden;background:#fff;scroll-snap-align:start;cursor:pointer}
-.strip-shot img{width:100%;height:100%;object-fit:contain;filter:grayscale(.55);transition:filter .4s ease,transform .6s ease;display:block}
-.strip-shot:hover img{filter:none;transform:scale(1.04)}
 @media(max-width:760px){.strip-shot{width:150px}.strip-track{padding:0 20px}}
 
 /* что мы проверяем */
-.craft{max-width:1120px;margin:0 auto;padding:80px 32px}
-.craft-title{font-family:var(--serif);font-weight:400;font-size:clamp(28px,4.4vw,44px);line-height:1.12;margin-bottom:46px}
-.craft-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
 @media(max-width:820px){.craft-grid{grid-template-columns:1fr}}
-.craft-card{border:1px solid var(--line);border-radius:6px;background:var(--card);padding:28px 24px;height:100%;transition:transform .3s ease,box-shadow .3s ease,border-color .3s}
-.craft-card:hover{transform:translateY(-5px);box-shadow:0 16px 38px rgba(26,22,19,.09);border-color:var(--accent)}
-.craft-no{font-family:var(--serif);font-size:15px;color:var(--accent);display:block;margin-bottom:16px}
-.craft-card h3{font-family:var(--serif);font-weight:500;font-size:20px;margin-bottom:10px}
-.craft-card p{font-size:14px;line-height:1.7;color:var(--ink-soft)}
 
 /* quiet luxe тизер */
 .luxe{background:#191512;color:#efe9df;padding:100px 32px;position:relative;overflow:hidden}
@@ -3294,7 +3237,6 @@ html{scroll-behavior:smooth}
 .luxe-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#c99a6b;margin-bottom:20px}
 .luxe-title{font-family:var(--serif);font-weight:400;font-size:clamp(38px,7vw,68px);letter-spacing:.06em;margin-bottom:22px}
 .luxe-title em{font-style:italic;color:#c99a6b}
-.luxe-text{color:#b3aa99;font-size:15px;line-height:1.75;margin-bottom:34px}
 .luxe-btn{display:inline-flex;align-items:center;gap:9px;border:1px solid #c99a6b;color:#efe9df;text-decoration:none;padding:14px 26px;border-radius:2px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;transition:background .25s,color .25s}
 .luxe-btn:hover{background:#c99a6b;color:#191512}
 .luxe-tease{text-align:center;padding:40px 20px 60px;display:flex;flex-direction:column;align-items:center;gap:18px}
@@ -3320,9 +3262,6 @@ html{scroll-behavior:smooth}
 @keyframes rotword{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* манифест среди вещей */
-.manifesto-card-wrap{margin:-20px 0}
-.manifesto-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:52px 20px;display:flex;flex-direction:column;align-items:center;gap:22px;text-align:center}
-.manifesto-card p{font-family:var(--serif);font-size:clamp(21px,3vw,29px);line-height:1.4;font-style:italic;color:var(--ink)}
 
 /* пульс бейджа корзины */
 .badge-pop{animation:badgepop .45s cubic-bezier(.2,.9,.3,1.4)}
@@ -3427,8 +3366,6 @@ html{scroll-behavior:smooth}
   .bhero-scroll{display:none}
 
   /* цифры в 2 колонки крупнее */
-  .stats{gap:0}
-  .stat{border:1px solid var(--line);border-radius:12px;margin:6px}
 
   /* вещь дропа: фото сверху, всё крупно, кнопка широкая */
   .drop-list{gap:56px}
@@ -3441,10 +3378,8 @@ html{scroll-behavior:smooth}
   .piece-price{justify-content:flex-start}
 
   /* карта манифеста компактнее */
-  .manifesto-card{padding:40px 18px}
 
   /* лента кадров — подсказка что листается */
-  .strip-track{scroll-snap-type:x mandatory}
 
   /* заголовки секций ровнее */
   .drop-head{margin-bottom:32px}
@@ -3471,9 +3406,7 @@ html{scroll-behavior:smooth}
 }
 
 @media(max-width:520px){
-  .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ticker-item{font-size:13px}
-  .craft-card{padding:22px 20px}
   .luxe{padding:70px 22px}
   .to-top{right:14px;bottom:14px;width:42px;height:42px}
 }
@@ -3482,7 +3415,6 @@ html{scroll-behavior:smooth}
 @media(hover:none){
   .piece-media:hover .garment{transform:none}
   .piece-alt{display:none}
-  .craft-card:hover{transform:none;box-shadow:none}
 }
 
 /* зум по наведению */
@@ -3587,7 +3519,7 @@ html{scroll-behavior:smooth}
 /* мягкое свечение вокруг активной вкладки уже задано box-shadow */
 
 /* плавная смена темы для крупных тёмных блоков */
-.lines,.drop,.craft,.stats,.info-block,.philosophy,.ticker{transition:background .8s ease}
+.drop,.info-block,.ticker{transition:background .8s ease}
 
 /* переключатель линий в hero */
 .hero-lines{display:inline-flex;gap:6px;padding:5px;border:1px solid var(--line);border-radius:100px;background:var(--card);margin:0 auto 22px;position:relative;z-index:2}
@@ -3621,8 +3553,10 @@ html{scroll-behavior:smooth}
 .mat-add:hover{border-color:var(--accent);color:var(--accent)}
 
 /* несколько материалов в каталоге — стопкой */
-.piece-mats{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
-.piece-mats .piece-material{margin-bottom:0}
+.piece-mats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.piece-mats .piece-material{margin-bottom:0;max-width:none;padding:6px 12px 6px 7px;gap:9px}
+.piece-mats .pm-swatch{width:32px;height:32px;border-radius:7px}
+.piece-mats .pm-label{display:none}
 
 /* материалы в аккордеоне товара */
 .acc-mats{display:flex;flex-direction:column;gap:10px}
@@ -3681,6 +3615,30 @@ html{scroll-behavior:smooth}
 .confirm-p{font-size:14.5px;line-height:1.7;color:var(--ink-soft);margin-bottom:18px}
 .confirm-p b{color:var(--ink);font-weight:500}
 .confirm-hint{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--ink-soft);line-height:1.55;margin-bottom:18px}
+
+/* «О бренде»: манифест, линии, ремесло */
+.info-manifesto{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;margin:44px auto;max-width:640px;padding:34px 24px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+.info-manifesto p{font-family:var(--serif);font-size:clamp(19px,2.6vw,24px);line-height:1.5;font-style:italic;color:var(--ink)}
+.info-h2-center{text-align:center;margin:10px 0 18px}
+.info-lines{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 0 40px}
+@media(max-width:720px){.info-lines{grid-template-columns:1fr}}
+.info-line{border:1px solid var(--line);border-radius:14px;padding:22px;background:var(--card)}
+.info-line h3{font-family:var(--serif);font-weight:400;font-size:22px;margin-bottom:8px;color:var(--ink)}
+.info-line p{font-size:14px;line-height:1.7;color:var(--ink-soft)}
+.info-line-extra{margin-top:10px}
+.craft-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 44px}
+@media(max-width:820px){.craft-grid{grid-template-columns:1fr}}
+.craft-card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:22px;transition:transform .3s,box-shadow .3s}
+.craft-card:hover{transform:translateY(-4px);box-shadow:0 14px 34px rgba(0,0,0,.08)}
+.craft-no{font-family:var(--serif);font-size:26px;color:var(--accent);display:block;margin-bottom:10px}
+.craft-card h3{font-size:15px;font-weight:500;margin-bottom:8px;color:var(--ink)}
+.craft-card p{font-size:13.5px;line-height:1.65;color:var(--ink-soft)}
+
+/* «Читать дальше» в каталоге */
+.xt-wrap{max-width:440px}
+.piece-desc.xt-open{display:block;-webkit-line-clamp:unset;overflow:visible}
+.xt-more{display:inline-block;margin:-8px 0 14px;font-size:12.5px;letter-spacing:.04em;color:var(--accent);border-bottom:1px solid currentColor;padding-bottom:1px;transition:opacity .2s}
+.xt-more:hover{opacity:.7}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
