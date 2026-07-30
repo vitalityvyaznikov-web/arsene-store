@@ -60,11 +60,6 @@ const DEFAULT_SETTINGS = {
   line2Desc: "Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.",
   luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
   manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
-  homeBanners: [
-    { id: "b1", image: null, title: "Коллекция 001", subtitle: "Первые вещи ROVELLE", buttonText: "Смотреть коллекцию", link: "shop" },
-    { id: "b2", image: null, title: "Heritage", subtitle: "Архив · Винтаж · Стокгольм", buttonText: "Открыть линию", link: "shop:Archive" },
-    { id: "b3", image: null, title: "Quiet Luxe", subtitle: "Тихая роскошь — скоро", buttonText: "Смотреть", link: "shop:Quiet Luxe" },
-  ],
   philosophyTitle: "Философия",
   philosophyText:
     "Rovelle — это одежда без логомании. Мы верим, что вещь должна говорить фактурой, швами и посадкой, а не надписью на груди. Каждая позиция отбирается вручную: архивные мотивы, честные материалы, ограниченные партии.",
@@ -86,7 +81,6 @@ const DEFAULT_SETTINGS = {
 const LINES = ["Archive", "Quiet Luxe"];
 const LINE_LABELS = { "Archive": "Rovelle Heritage", "Quiet Luxe": "Rovelle Quiet Luxe" };
 const LINE_SHORT = { "Archive": "Heritage", "Quiet Luxe": "Quiet Luxe" };  // короткое имя линии
-const plural = (n, one, few, many) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many}`;
 const catLabel = (c) => (c === "Всё" ? "Вся коллекция" : LINE_SHORT[c] || c);
 const CATEGORIES = ["Всё", ...LINES];
 const SHOP_CATS = LINES;
@@ -302,7 +296,7 @@ function Store() {
     if (!settings) return;
     const brand = BRAND;
     const p = view === "product" && selectedId ? byId(selectedId) : null;
-    const titles = { catalog: `${brand} — мужская одежда`, shop: `Коллекция — ${brand}`, cart: `Корзина — ${brand}`, checkout: `Оформление предзаказа — ${brand}`,
+    const titles = { catalog: `${brand} — мужская одежда`, cart: `Корзина — ${brand}`, checkout: `Оформление предзаказа — ${brand}`,
       favorites: `Избранное — ${brand}`, info: `О магазине — ${brand}`, account: `Мой аккаунт — ${brand}`,
       orders: `Мои заказы — ${brand}`, admin: `Админ-панель — ${brand}`, success: `Заказ оформлен — ${brand}` };
     document.title = p ? `${p.name} — ${brand}` : (titles[view] || brand);
@@ -327,12 +321,7 @@ function Store() {
     try { if (window.ym) window.ym(window.__ym_id, "hit", hash); } catch (e) {}
   };
   const openProduct = (id) => { setSelectedId(id); go("product", id); };
-  const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("shop"); };
-  const goBanner = (link) => {
-    if (link === "info") return go("info");
-    if (typeof link === "string" && link.startsWith("shop:")) return openCatalog(link.slice(5));
-    return openCatalog("Всё");
-  };
+  const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("catalog"); };
 
   // читаем адрес при загрузке и по кнопке «Назад»
   useEffect(() => {
@@ -344,7 +333,7 @@ function Store() {
       const h = raw.replace(/^#\/?/, "");
       const [seg, id] = h.split("/");
       if (seg === "product" && id) { setSelectedId(Number(id)); setView("product"); }
-      else if (["shop", "cart", "checkout", "favorites", "info", "account", "orders", "login", "admin", "success"].includes(seg)) setView(seg);
+      else if (["cart", "checkout", "favorites", "info", "account", "orders", "login", "admin", "success"].includes(seg)) setView(seg);
       else setView("catalog");
       setFade(true);
     };
@@ -536,11 +525,8 @@ function Store() {
 
       <main className={fade ? "page page-in" : "page"}>
       {view === "catalog" && (
-        <CatalogView settings={settings} onGo={goBanner} />
-      )}
-      {view === "shop" && (
-        <ShopView settings={settings} products={products} activeCat={activeCat} setActiveCat={setActiveCat}
-          onOpen={openProduct} query={query} setQuery={setQuery} favorites={favorites} onFav={toggleFav} />
+        <CatalogView settings={settings} products={products} activeCat={activeCat} setActiveCat={setActiveCat}
+          onOpen={openProduct} onInfo={() => go("info")} query={query} setQuery={setQuery} favorites={favorites} onFav={toggleFav} />
       )}
       {view === "product" && selectedId && byId(selectedId) && (
         (() => {
@@ -686,15 +672,103 @@ function Wordmark({ animate = false }) {
   );
 }
 
+/* --------- Сменяющиеся слова --------- */
+function RotatingWord({ words, interval = 2200 }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((x) => (x + 1) % words.length), interval);
+    return () => clearInterval(t);
+  }, [words.length, interval]);
+  return <span key={i} className="rot-word">{words[i]}</span>;
+}
+
 /* --------- Логотип бренда: точная векторная копия знака, цвет следует теме --------- */
 function Monogram({ size = 150 }) {
   return <div className="mono-img" style={{ height: size, width: size * 1.033 }} role="img" aria-label="ROVELLE" />;
 }
 
+/* --------- Первый экран: свет за курсором + параллакс --------- */
+function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
+  const ref = React.useRef(null);
+  const markRef = React.useRef(null);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (markRef.current) markRef.current.style.transform = `translate(-50%, calc(-50% + ${window.scrollY * 0.22}px))`;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const onMove = (e) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--my", `${e.clientY - r.top}px`);
+  };
+
+  return (
+    <section className="bhero" ref={ref} onMouseMove={onMove}>
+      <div className="bhero-glow" aria-hidden="true" />
+      <div className="bhero-mark" ref={markRef} aria-hidden="true" />
+      <h1 className="bhero-name"><Wordmark animate /></h1>
+      <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
+      <Reveal delay={600}>
+        <div className="hero-lines">
+          {[["Archive", "Heritage"], ["Quiet Luxe", "Quiet Luxe"]].map(([val, label]) => (
+            <button key={val} className={`hero-line-btn ${activeCat === val ? "on" : ""}`} onClick={() => setActiveCat(val)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </Reveal>
+      <Reveal delay={850}>
+        <div className="bhero-cta">
+          <button className="btn-primary" onClick={onDrop}>Смотреть коллекцию <ArrowRight size={15} /></button>
+          <button className="btn-ghost" onClick={onInfo}>О бренде</button>
+        </div>
+      </Reveal>
+      <div className="bhero-est">{settings.heroEyebrow} · <RotatingWord words={["Архив", "Стокгольм", "Винтаж", "Без логотипов"]} /></div>
+      <div className="bhero-scroll" aria-hidden="true"><span /></div>
+    </section>
+  );
+}
+
+/* --------- «Живое» фото вещи: наклон, вторая картинка, блик --------- */
+function PieceMedia({ p, onOpen }) {
+  const gallery = getGallery(p);
+  const alt = gallery[1]?.src ? gallery[1] : null;
+  const ref = React.useRef(null);
+
+  const move = (e) => {
+    const el = ref.current;
+    if (!el || window.matchMedia("(pointer: coarse)").matches) return;
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(900px) rotateX(${(-y * 4).toFixed(2)}deg) rotateY(${(x * 4).toFixed(2)}deg)`;
+    el.style.setProperty("--gx", `${e.clientX - r.left}px`);
+    el.style.setProperty("--gy", `${e.clientY - r.top}px`);
+  };
+  const leave = () => { if (ref.current) ref.current.style.transform = ""; };
+
+  return (
+    <button className="piece-media" ref={ref} onMouseMove={move} onMouseLeave={leave} onClick={onOpen} aria-label={p.name}>
+      <Media p={p} img={gallery[0]} large />
+      {alt && <img className="piece-alt" src={alt.src} alt="" loading="lazy" />}
+      <span className="piece-glow" aria-hidden="true" />
+      <span className="piece-shine" aria-hidden="true" />
+      {p.tag && <span className="piece-tag">{p.tag}</span>}
+      <span className="piece-view"><Search size={15} /> Открыть</span>
+    </button>
+  );
+}
+
 /* --------- Дополнительная информация (аккордеон) --------- */
 const FAQ_ITEMS = [
   ["Доставка", "Курьером по городу, СДЭК по всей России или самовывоз. Обычный срок — 1–3 дня. При заказе от 5 000 ₽ доставка бесплатная."],
-  ["Оплата", "Предзаказ с полной оплатой. После оформления с вами связывается менеджер и принимает оплату. Когда подключим онлайн-оплату, карта будет приниматься прямо на сайте."],
+  ["Оплата", "СБП онлайн-переводом или при получении. После оформления открывается чат с менеджером в Telegram — он подтверждает оплату и заказ, обычно в течение часа."],
   ["Возврат", "14 дней на возврат, если вещь не подошла: без следов носки, с сохранённой комплектацией. Напишите менеджеру — организуем обратную доставку."],
   ["Как мы отбираем вещи", "Каждая позиция проходит ручной отбор: смотрим швы, фактуру, честность денима и посадку. В коллекцию попадает малая часть из того, что мы находим."],
 ];
@@ -715,87 +789,160 @@ function FAQ() {
   );
 }
 
-/* ============================ ГЛАВНАЯ: КАМПАНИИ (Ralph Lauren style) ============================ */
-function CatalogView({ settings, onGo }) {
-  const banners = (settings.homeBanners && settings.homeBanners.length > 0)
-    ? settings.homeBanners
-    : DEFAULT_SETTINGS.homeBanners;
-
-  return (
-    <div className="home">
-      {banners.map((bn, i) => {
-        const src = bn.image ? imgFull(bn.image) : null;
-        const Tag = i === 0 ? "h1" : "h2";
-        return (
-          <section key={bn.id || i} className={`hb ${i === 0 ? "hb-hero" : ""} ${src ? "" : `hb-empty hb-ph-${i % 3}`}`}>
-            {src
-              ? <img className="hb-img" src={src} alt={bn.title || "ROVELLE"} loading={i === 0 ? "eager" : "lazy"} />
-              : <span className="hb-rv" aria-hidden="true" />}
-            {src && <span className="hb-shade" aria-hidden="true" />}
-            <Reveal className="hb-inner">
-              {bn.title && <Tag className="hb-title">{bn.title}</Tag>}
-              {bn.subtitle && <p className="hb-sub">{bn.subtitle}</p>}
-              {bn.buttonText && <button className="hb-btn" onClick={() => onGo(bn.link)}>{bn.buttonText}</button>}
-            </Reveal>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-/* --------------------------- Каталог (отдельная страница) --------------------------- */
-function ShopView({ settings, products, activeCat, setActiveCat, onOpen, query, setQuery, favorites, onFav }) {
+/* ============================ ГЛАВНАЯ БРЕНДА ============================ */
+function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onInfo, query, setQuery, favorites, onFav }) {
   const q = query.trim().toLowerCase();
   const inLine = (p) => activeCat === "Всё" || p.cat === activeCat;
   const list = products.filter((p) => inLine(p) &&
     (!q || `${p.name} ${p.brand || ""} ${p.material || ""} ${typeLabel(p.type)}`.toLowerCase().includes(q)));
-  const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0 && !q;
+
+  const scrollToDrop = (line) => {
+    if (line) setActiveCat(line);
+    setTimeout(() => document.getElementById("drop")?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
+  };
+
+  const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0;
+  const tickerWords = ["Heritage", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
 
   return (
-    <section className="shop">
-      <Reveal>
-        <div className="drop-head">
-          <div>
-            <div className="drop-eyebrow">Коллекция 001</div>
-            <h1 className="drop-title">{catLabel(activeCat)}</h1>
-            <div className="shop-count">{plural(list.length, "вещь", "вещи", "вещей")}</div>
-          </div>
-          <div className="drop-tools">
-            <div className="line-tabs">
-              {CATEGORIES.map((c) => (
-                <button key={c} className={activeCat === c ? "on" : ""} onClick={() => setActiveCat(c)}>{catLabel(c)}</button>
-              ))}
-            </div>
-            <div className="search-wrap">
-              <Search size={15} />
-              <input id="search-input" placeholder="Поиск" value={query} onChange={(e) => setQuery(e.target.value)} />
-            </div>
-          </div>
-        </div>
-      </Reveal>
+    <>
+      <BrandHero settings={settings} activeCat={activeCat} setActiveCat={setActiveCat} onDrop={() => scrollToDrop("Archive")} onInfo={onInfo} />
 
-      {luxeEmpty ? (
-        <Reveal>
-          <div className="luxe-tease">
-            <Monogram size={130} />
-            <h3>Линия готовится</h3>
-            <p>Поло из благородного хлопка, брюки с идеальной посадкой, полузамки и лоферы. Без логотипов — только ткань и крой. Следите в Telegram, чтобы не пропустить запуск.</p>
-            {settings.telegram && <a className="btn-primary" href={settings.telegram} target="_blank" rel="noreferrer"><Send size={15} /> Ждать в Telegram</a>}
-          </div>
-        </Reveal>
-      ) : list.length === 0 ? (
-        <p className="drop-empty">{q ? "Ничего не нашлось — попробуйте другой запрос." : "Вещи скоро появятся."}</p>
-      ) : (
-        <div className="shop-grid">
-          {list.map((p, i) => (
-            <Reveal key={p.id} delay={(i % 3) * 70}>
-              <ProductCard p={p} onOpen={() => onOpen(p.id)} isFav={favorites.includes(p.id)} onFav={() => onFav(p.id)} />
-            </Reveal>
+      {/* ---------- Бегущая строка ---------- */}
+      <div className="ticker" aria-hidden="true">
+        <div className="ticker-track">
+          {[...tickerWords, ...tickerWords, ...tickerWords].map((w, i) => (
+            <span key={i} className="ticker-item">{w}<i>·</i></span>
           ))}
         </div>
-      )}
-    </section>
+      </div>
+
+      {/* ---------- Дроп ---------- */}
+      <section className="drop" id="drop">
+        <Reveal>
+          <div className="drop-head">
+            <div>
+              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 2" : "Коллекция 001 · Heritage"}</div>
+              <h2 className="drop-title">{activeCat === "Quiet Luxe" ? "Quiet Luxe" : "Первые вещи"}</h2>
+            </div>
+            <div className="drop-tools">
+              <div className="line-tabs">
+                {CATEGORIES.map((c) => (
+                  <button key={c} className={activeCat === c ? "on" : ""} onClick={() => setActiveCat(c)}>{catLabel(c)}</button>
+                ))}
+              </div>
+              <div className="search-wrap">
+                <Search size={15} />
+                <input id="search-input" placeholder="Поиск" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {luxeEmpty ? (
+          <Reveal>
+            <div className="luxe-tease">
+              <Monogram size={130} />
+              <h3>Линия готовится</h3>
+              <p>Поло из благородного хлопка, брюки с идеальной посадкой, полузамки и лоферы. Без логотипов — только ткань и крой. Следите в Telegram, чтобы не пропустить запуск.</p>
+              {settings.telegram && <a className="btn-primary" href={settings.telegram} target="_blank" rel="noreferrer"><Send size={15} /> Ждать в Telegram</a>}
+            </div>
+          </Reveal>
+        ) : list.length === 0 ? (
+          <p className="drop-empty">{q ? "Ничего не нашлось — попробуйте другой запрос." : "Вещи скоро появятся."}</p>
+        ) : (
+          <div className="drop-list">
+            {list.map((p, i) => (
+              <React.Fragment key={p.id}>
+              <Reveal delay={(i % 2) * 80} className={i % 2 ? "rv-right" : "rv-left"}>
+                <article className={`piece ${i % 2 ? "piece-flip" : ""}`}>
+                  <PieceMedia p={p} onOpen={() => onOpen(p.id)} />
+                  <div className="piece-info">
+                    <div className="piece-no">{String(i + 1).padStart(2, "0")} <span>/ {String(list.length).padStart(2, "0")}</span></div>
+                    <h3 className="piece-name">{p.name}</h3>
+                    <div className="piece-meta">{LINE_LABELS[p.cat] || p.cat} · {typeLabel(p.type)}</div>
+                    <ExpandableText text={p.desc} className="piece-desc" />
+                    {(p.materials && p.materials.length > 0) ? (
+                      <div className="piece-mats">
+                        {p.materials.map((m, mi) => (
+                          <div className="piece-material" key={mi}>
+                            <div className="pm-swatch">
+                              {m.photo ? <img src={imgThumb(m.photo)} alt={m.name} loading="lazy" />
+                                : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
+                            </div>
+                            <div className="pm-text">
+                              <span className="pm-label">Материал</span>
+                              <span className="pm-value">{m.name}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : p.material && (
+                      <div className="piece-material">
+                        <div className="pm-swatch">
+                          {getGallery(p).length > 1
+                            ? <img src={getGallery(p)[getGallery(p).length - 1].thumb} alt="Материал" loading="lazy" />
+                            : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
+                        </div>
+                        <div className="pm-text">
+                          <span className="pm-label">Материал</span>
+                          <span className="pm-value">{p.material}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="piece-sizes">{(p.sizes || []).map((s) => <span key={s}>{s}</span>)}</div>
+                    <div className="piece-row">
+                      <div className="piece-price">
+                        {p.oldPrice > 0 && <span className="old">{money(p.oldPrice)}</span>}
+                        <span className={p.oldPrice > 0 ? "sale-price" : ""}>{money(p.price)}</span>
+                      </div>
+                      <div className="piece-actions">
+                        <button className={`fav-btn ${favorites.includes(p.id) ? "fav-on" : ""}`} onClick={() => onFav(p.id)} aria-label="В избранное">
+                          <Heart size={17} fill={favorites.includes(p.id) ? "currentColor" : "none"} />
+                        </button>
+                        <button className="btn-primary" onClick={() => onOpen(p.id)}>Смотреть вещь</button>
+                      </div>
+                    </div>
+                    {p.stock > 0 && p.stock <= 3 && <div className="piece-low">Осталось {p.stock} шт</div>}
+                    {p.stock <= 0 && <div className="piece-out">Распродано</div>}
+                  </div>
+                </article>
+              </Reveal>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ---------- Quiet Luxe — тёмный тизер ---------- */}
+      <section className="luxe" onMouseMove={(e) => {
+        const el = e.currentTarget; const r = el.getBoundingClientRect();
+        el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+        el.style.setProperty("--my", `${e.clientY - r.top}px`);
+      }}>
+        <div className="luxe-glow" aria-hidden="true" />
+        <Reveal>
+          <div className="luxe-inner">
+            <div className="luxe-eyebrow">Линия 2 · скоро</div>
+            <h2 className="luxe-title">Quiet <em>Luxe</em></h2>
+            {settings.telegram && (
+              <a className="luxe-btn" href={settings.telegram} target="_blank" rel="noreferrer">
+                <Send size={15} /> Узнать о запуске первым
+              </a>
+            )}
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ---------- Дополнительная информация ---------- */}
+      <section className="info-block">
+        <Reveal>
+          <div className="drop-eyebrow">Как всё устроено</div>
+          <h2 className="drop-title" style={{ marginBottom: 34 }}>Вопросы и ответы</h2>
+        </Reveal>
+        <Reveal delay={120}><FAQ /></Reveal>
+      </section>
+    </>
   );
 }
 
@@ -856,14 +1003,10 @@ function ProductCard({ p, onOpen, isFav, onFav }) {
             <span className={p.oldPrice > 0 ? "sale-price" : ""}>{money(p.price)}</span>
           </div>
         </div>
-        {(p.materials?.[0]?.name || p.material) && (
-          <div className="card-mat">
-            {p.materials?.[0]?.photo
-              ? <img src={imgThumb(p.materials[0].photo)} alt="" loading="lazy" />
-              : <span className="card-mat-dot" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
-            <span>{p.materials?.[0]?.name || p.material}</span>
-          </div>
-        )}
+        <div className="card-foot">
+          <div className="card-sizes">{(p.sizes || []).slice(0, 5).map((s) => <span key={s}>{s}</span>)}</div>
+          <div className="swatches">{(p.colors || []).slice(0, 4).map((c, i) => <span key={i} className="swatch" style={{ background: c }} />)}</div>
+        </div>
       </div>
     </article>
   );
@@ -1481,6 +1624,23 @@ function SuccessView({ brand, orderId, canTrack, tgLink, payMeta, settings, onOr
 }
 
 /* --------------------------- О магазине / Контакты --------------------------- */
+/* --------- Текст с разворачиванием («Читать дальше») --------- */
+function ExpandableText({ text, className = "" }) {
+  const [open, setOpen] = useState(false);
+  if (!text) return null;
+  const long = text.length > 130;
+  return (
+    <div className="xt-wrap">
+      <p className={`${className} ${open || !long ? "xt-open" : ""}`}>{text}</p>
+      {long && (
+        <button type="button" className="xt-more" onClick={(e) => { e.stopPropagation(); setOpen(!open); }}>
+          {open ? "Свернуть" : "Читать дальше"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function InfoView({ settings, onShop }) {
   const s = settings;
   const contacts = [
@@ -1524,9 +1684,6 @@ function InfoView({ settings, onShop }) {
           <div className="craft-card" key={n}><span className="craft-no">{n}</span><h3>{t}</h3><p>{d}</p></div>
         ))}
       </div>
-
-      <h2 className="info-h2 info-h2-center">Вопросы и ответы</h2>
-      <div className="info-faq"><FAQ /></div>
 
       <div className="info-contacts-wrap">
         <div className="info-contacts">
@@ -1984,21 +2141,6 @@ function SettingsForm({ settings, onSave, onCancel }) {
   const [err, setErr] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
-  // --- баннеры главной ---
-  const [bBusy, setBBusy] = useState(-1);
-  const hbList = f.homeBanners || [];
-  const setBanner = (i, k, v) => set("homeBanners", hbList.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-  const moveBanner = (i, d) => { const a = [...hbList]; const t = a[i]; a[i] = a[i + d]; a[i + d] = t; set("homeBanners", a); };
-  const delBanner = (i) => set("homeBanners", hbList.filter((_, j) => j !== i));
-  const addBanner = () => set("homeBanners", [...hbList, { id: `b${Date.now()}`, image: null, title: "", subtitle: "", buttonText: "Смотреть", link: "shop" }]);
-  const onBannerFile = async (i, file) => {
-    if (!file) return;
-    setBBusy(i); setErr("");
-    try { const img = await uploadProductImage(file); setBanner(i, "image", img); }
-    catch (e2) { setErr("Не удалось загрузить фото баннера"); }
-    setBBusy(-1);
-  };
-
   const uploadLogo = async (fileList) => {
     const file = fileList?.[0];
     if (!file) return;
@@ -2061,45 +2203,6 @@ function SettingsForm({ settings, onSave, onCancel }) {
           <Field label="Линия 1 — описание"><textarea rows={2} value={f.line1Desc} onChange={(e) => set("line1Desc", e.target.value)} /></Field>
           <Field label="Линия 2 — описание"><textarea rows={2} value={f.line2Desc} onChange={(e) => set("line2Desc", e.target.value)} /></Field>
           <Field label="Quiet Luxe — подробнее"><textarea rows={3} value={f.luxeText} onChange={(e) => set("luxeText", e.target.value)} /></Field>
-        </div>
-
-        <div className="form-block">
-          <h3 className="block-title">Главная — баннеры</h3>
-          <p className="block-hint">Кампанийные фото во весь экран, как у Ralph Lauren. Горизонтальные, шириной от 1600 px. Пока фото не загружено — на сайте фирменная заглушка.</p>
-          {hbList.map((bn, i) => (
-            <div className="hbr" key={bn.id || i}>
-              <div className="hbr-prev">
-                {bn.image ? <img src={imgThumb(bn.image)} alt="" /> : <span>Нет фото</span>}
-              </div>
-              <div className="hbr-fields">
-                <div className="row-2">
-                  <Field label="Заголовок"><input value={bn.title} onChange={(e) => setBanner(i, "title", e.target.value)} placeholder="Коллекция 001" /></Field>
-                  <Field label="Текст кнопки"><input value={bn.buttonText} onChange={(e) => setBanner(i, "buttonText", e.target.value)} placeholder="Смотреть" /></Field>
-                </div>
-                <Field label="Подпись (одна строка)"><input value={bn.subtitle} onChange={(e) => setBanner(i, "subtitle", e.target.value)} /></Field>
-                <Field label="Куда ведёт кнопка">
-                  <select value={bn.link} onChange={(e) => setBanner(i, "link", e.target.value)}>
-                    <option value="shop">Вся коллекция</option>
-                    <option value="shop:Archive">Линия Heritage</option>
-                    <option value="shop:Quiet Luxe">Линия Quiet Luxe</option>
-                    <option value="info">Страница «О бренде»</option>
-                  </select>
-                </Field>
-                <div className="hbr-actions">
-                  <label className="btn-ghost">
-                    {bBusy === i ? "Загрузка…" : bn.image ? "Заменить фото" : "Загрузить фото"}
-                    <input type="file" accept="image/*" hidden disabled={bBusy !== -1}
-                      onChange={(e) => { onBannerFile(i, e.target.files?.[0]); e.target.value = ""; }} />
-                  </label>
-                  {bn.image && <button type="button" className="btn-ghost" onClick={() => setBanner(i, "image", null)}>Убрать фото</button>}
-                  <button type="button" className="btn-ghost" onClick={() => moveBanner(i, -1)} disabled={i === 0}>↑</button>
-                  <button type="button" className="btn-ghost" onClick={() => moveBanner(i, 1)} disabled={i === hbList.length - 1}>↓</button>
-                  <button type="button" className="btn-ghost hbr-del" onClick={() => delBanner(i)}>Удалить</button>
-                </div>
-              </div>
-            </div>
-          ))}
-          {hbList.length < 5 && <button type="button" className="btn-ghost" onClick={addBanner}>+ Добавить баннер</button>}
         </div>
 
         <div className="form-block">
@@ -2584,6 +2687,11 @@ const css = `
 .card-price{font-size:14px;display:flex;gap:8px;align-items:baseline;white-space:nowrap;flex-shrink:0}
 .old{color:var(--ink-soft);text-decoration:line-through;font-size:13px}
 .sale-price{color:var(--accent);font-weight:600}
+.card-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px}
+.card-sizes{display:flex;gap:5px;flex-wrap:wrap;min-width:0}
+.card-sizes span{font-size:11px;color:var(--ink-soft);border:1px solid var(--line);border-radius:4px;padding:2px 7px}
+.swatches{display:flex;gap:6px;flex-shrink:0}
+.swatch{width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
 
 .product{max-width:1180px;margin:0 auto;padding:26px 32px 80px}
 @media(max-width:760px){.product{padding:20px 20px 60px}}
@@ -3040,9 +3148,25 @@ html{scroll-behavior:smooth}
 .mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;transition:background-color .6s ease}
 
 /* первый экран */
+.bhero{min-height:clamp(520px,80svh,760px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:56px 24px 64px;position:relative;overflow:hidden}
+.bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,38%),rgba(var(--glow),.12),transparent 68%);transition:background .1s}
+.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(340px,52vw,660px);aspect-ratio:1.033/1;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;opacity:.07;pointer-events:none;user-select:none}
+.bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
+.bhero-name .wm-line{margin-top:.1em}
+.bhero-tag{max-width:520px;color:var(--ink-soft);font-size:16px;line-height:1.7;margin-bottom:34px;position:relative}
+.bhero-cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;position:relative}
+.bhero-est{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-soft)}
+.bhero-scroll{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:1px;height:30px;background:var(--line);overflow:hidden}
+.bhero-scroll span{display:block;width:100%;height:12px;background:var(--accent);animation:scrolldot 1.8s ease-in-out infinite}
 @keyframes scrolldot{0%{transform:translateY(-14px)}70%{transform:translateY(32px)}100%{transform:translateY(32px)}}
 
 /* бегущая строка */
+.ticker{overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0;background:var(--card)}
+.ticker-track{display:flex;width:max-content;animation:ticker 36s linear infinite}
+.ticker-item{font-family:var(--serif);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);display:inline-flex;align-items:center;white-space:nowrap}
+.ticker-item i{font-style:normal;color:var(--accent);margin:0 22px}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-33.333%)}}
+.ticker:hover .ticker-track{animation-play-state:paused}
 
 /* две линии */
 /* фоновая буква-знак, проявляется при наведении */
@@ -3068,6 +3192,37 @@ html{scroll-behavior:smooth}
 .drop-empty{color:var(--ink-soft);text-align:center;padding:60px 0}
 
 /* вещь дропа */
+.drop-list{display:flex;flex-direction:column;gap:88px}
+.piece{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center}
+.piece-flip{direction:rtl}
+.piece-flip>*{direction:ltr}
+@media(max-width:820px){.piece,.piece-flip{grid-template-columns:1fr;gap:22px;direction:ltr}}
+.piece-media{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:#fff;cursor:pointer;display:block;width:100%;transition:transform .35s ease,box-shadow .35s ease;will-change:transform}
+.piece-media:hover{box-shadow:0 30px 70px rgba(var(--glow),.22)}
+.piece-glow{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(260px circle at var(--gx,50%) var(--gy,40%),rgba(var(--glow),.16),transparent 62%)}
+.piece-media:hover .piece-glow{opacity:1}
+.piece-view{position:absolute;left:50%;bottom:16px;transform:translateX(-50%) translateY(12px);z-index:3;display:inline-flex;align-items:center;gap:7px;background:var(--paper);color:var(--ink);font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:9px 18px;border-radius:100px;box-shadow:0 8px 22px rgba(0,0,0,.16);opacity:0;transition:opacity .35s,transform .35s cubic-bezier(.2,.7,.2,1)}
+.piece-media:hover .piece-view{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(hover:none){.piece-view{display:none}}
+.piece-media .garment{transition:transform .8s cubic-bezier(.2,.7,.2,1)}
+.piece-media:hover .garment{transform:scale(1.05)}
+.piece-alt{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;opacity:0;transition:opacity .45s ease}
+.piece-media:hover .piece-alt{opacity:1}
+.piece-shine{position:absolute;top:0;bottom:0;left:-70%;width:45%;background:linear-gradient(78deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-12deg);transition:none;pointer-events:none}
+.piece-media:hover .piece-shine{left:130%;transition:left .8s ease}
+.piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px;z-index:2}
+.piece-no{font-family:var(--serif);font-size:44px;color:var(--accent);line-height:1;margin-bottom:14px}
+.piece-no span{font-size:16px;color:var(--ink-soft)}
+.piece-name{font-family:var(--serif);font-weight:400;font-size:clamp(24px,3.2vw,34px);line-height:1.15;margin-bottom:8px;transition:color .3s}
+.piece-meta{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px}
+.piece-desc{color:var(--ink-soft);font-size:14.5px;line-height:1.7;margin-bottom:14px;max-width:440px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.piece-sizes{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.piece-sizes span{border:1px solid var(--line);border-radius:2px;padding:4px 10px;font-size:12px;color:var(--ink-soft)}
+.piece-row{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.piece-price{font-family:var(--serif);font-size:22px;display:flex;gap:10px;align-items:baseline}
+.piece-actions{display:flex;gap:10px;align-items:center}
+.piece-low{margin-top:12px;font-size:12px;color:#8a5a1a}
+.piece-out{margin-top:12px;font-size:12px;color:var(--accent)}
 
 /* лента кадров */
 @media(max-width:760px){.strip-shot{width:150px}.strip-track{padding:0 20px}}
@@ -3076,11 +3231,20 @@ html{scroll-behavior:smooth}
 @media(max-width:820px){.craft-grid{grid-template-columns:1fr}}
 
 /* quiet luxe тизер */
+.luxe{background:#191512;color:#efe9df;padding:100px 32px;position:relative;overflow:hidden}
+.luxe-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,50%),rgba(201,154,107,.10),transparent 70%)}
+.luxe-inner{max-width:640px;margin:0 auto;text-align:center;position:relative}
+.luxe-eyebrow{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#c99a6b;margin-bottom:20px}
+.luxe-title{font-family:var(--serif);font-weight:400;font-size:clamp(38px,7vw,68px);letter-spacing:.06em;margin-bottom:22px}
+.luxe-title em{font-style:italic;color:#c99a6b}
+.luxe-btn{display:inline-flex;align-items:center;gap:9px;border:1px solid #c99a6b;color:#efe9df;text-decoration:none;padding:14px 26px;border-radius:2px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;transition:background .25s,color .25s}
+.luxe-btn:hover{background:#c99a6b;color:#191512}
 .luxe-tease{text-align:center;padding:40px 20px 60px;display:flex;flex-direction:column;align-items:center;gap:18px}
 .luxe-tease h3{font-family:var(--serif);font-weight:400;font-size:30px}
 .luxe-tease p{max-width:480px;color:var(--ink-soft);font-size:14.5px;line-height:1.7}
 
 /* доп. информация */
+.info-block{max-width:760px;margin:0 auto;padding:90px 32px 20px}
 @media(max-width:760px){.info-block{padding:60px 20px 10px}}
 .faq{border-top:1px solid var(--line)}
 .faq-item{border-bottom:1px solid var(--line)}
@@ -3193,10 +3357,25 @@ html{scroll-behavior:smooth}
   .mm-social{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:100px;padding:10px 18px;font-size:13px;color:var(--ink);text-decoration:none}
 
   /* первый экран короче и живее */
+  .bhero{min-height:auto;padding:54px 22px 66px}
+  .bhero-mark{width:clamp(280px,82vw,420px);opacity:.07}
+  .bhero-tag{font-size:15px}
+  .bhero-cta{width:100%;flex-direction:column;gap:10px}
+  .bhero-cta .btn-primary,.bhero-cta .btn-ghost{width:100%}
+  .bhero-est{position:static;transform:none;margin-top:34px}
+  .bhero-scroll{display:none}
 
   /* цифры в 2 колонки крупнее */
 
   /* вещь дропа: фото сверху, всё крупно, кнопка широкая */
+  .drop-list{gap:56px}
+  .piece-no{font-size:34px;margin-bottom:8px}
+  .piece-name{font-size:26px}
+  .piece-desc{font-size:14px}
+  .piece-row{flex-direction:column;align-items:stretch;gap:14px}
+  .piece-actions{width:100%}
+  .piece-actions .btn-primary{flex:1}
+  .piece-price{justify-content:flex-start}
 
   /* карта манифеста компактнее */
 
@@ -3227,11 +3406,15 @@ html{scroll-behavior:smooth}
 }
 
 @media(max-width:520px){
+  .ticker-item{font-size:13px}
+  .luxe{padding:70px 22px}
   .to-top{right:14px;bottom:14px;width:42px;height:42px}
 }
 
 /* аккуратные тач-таргеты */
 @media(hover:none){
+  .piece-media:hover .garment{transform:none}
+  .piece-alt{display:none}
 }
 
 /* зум по наведению */
@@ -3336,11 +3519,25 @@ html{scroll-behavior:smooth}
 /* мягкое свечение вокруг активной вкладки уже задано box-shadow */
 
 /* плавная смена темы для крупных тёмных блоков */
-.drop{transition:background .8s ease}
+.drop,.info-block,.ticker{transition:background .8s ease}
 
 /* переключатель линий в hero */
+.hero-lines{display:inline-flex;gap:6px;padding:5px;border:1px solid var(--line);border-radius:100px;background:var(--card);margin:0 auto 22px;position:relative;z-index:2}
+.hero-line-btn{padding:9px 22px;border-radius:100px;font-size:13px;letter-spacing:.04em;color:var(--ink-soft);transition:color .3s;position:relative}
+.hero-line-btn.on{color:#fff}
+.hero-line-btn.on::before{content:"";position:absolute;inset:0;background:var(--accent);border-radius:100px;z-index:-1;box-shadow:0 6px 18px rgba(var(--glow),.35);animation:pillpop .4s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pillpop{0%{transform:scale(.85)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
+.hero-line-btn:not(.on):hover{color:var(--ink)}
 
 /* материал вещи в каталоге */
+.piece-material{display:flex;align-items:center;gap:12px;margin-bottom:18px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);max-width:340px;transition:border-color .3s,transform .3s}
+.piece-material:hover{border-color:var(--accent);transform:translateX(3px)}
+.pm-swatch{width:44px;height:44px;border-radius:8px;overflow:hidden;flex-shrink:0;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+.pm-swatch img{width:100%;height:100%;object-fit:cover;display:block}
+.pm-color{display:block;width:100%;height:100%}
+.pm-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pm-label{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
+.pm-value{font-size:13px;color:var(--ink);line-height:1.4}
 
 /* редактор материалов в админке */
 .mat-editor{display:flex;flex-direction:column;gap:10px}
@@ -3356,6 +3553,10 @@ html{scroll-behavior:smooth}
 .mat-add:hover{border-color:var(--accent);color:var(--accent)}
 
 /* несколько материалов в каталоге — стопкой */
+.piece-mats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.piece-mats .piece-material{margin-bottom:0;max-width:none;padding:6px 12px 6px 7px;gap:9px}
+.piece-mats .pm-swatch{width:32px;height:32px;border-radius:7px}
+.piece-mats .pm-label{display:none}
 
 /* материалы в аккордеоне товара */
 .acc-mats{display:flex;flex-direction:column;gap:10px}
@@ -3434,67 +3635,10 @@ html{scroll-behavior:smooth}
 .craft-card p{font-size:13.5px;line-height:1.65;color:var(--ink-soft)}
 
 /* «Читать дальше» в каталоге */
-
-/* журнальная сетка коллекции: 3 — 2 крупнее — 3 */
-
-/* чип материала на карточке */
-.card-mat{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:5px 11px 5px 6px;border:1px solid var(--line);border-radius:100px;background:var(--card);font-size:12px;color:var(--ink-soft);max-width:100%}
-.card-mat img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0}
-.card-mat-dot{width:14px;height:14px;border-radius:50%;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
-.card-mat span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* FAQ на странице «О бренде» */
-.info-faq{max-width:760px;margin:0 auto 46px}
-
-.piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px;z-index:3}
-
-/* два входа на главной */
-
-/* страница каталога */
-.shop{max-width:1280px;margin:0 auto;padding:44px 32px 100px}
-@media(max-width:760px){.shop{padding:28px 18px 70px}}
-.shop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:52px 26px;margin-top:8px}
-@media(max-width:1000px){.shop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 16px}}
-
-/* полноэкранная афиша */
-
-/* счётчик в каталоге */
-.shop-count{margin-top:7px;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
-
-/* главная: кампанийные баннеры */
-.hb{position:relative;min-height:74vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;text-align:center;color:#fff}
-.hb-hero{min-height:100svh}
-.hb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.hb-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,14,24,.12),transparent 38%,transparent 52%,rgba(10,14,24,.58))}
-.hb-inner{position:relative;z-index:2;padding:0 24px clamp(54px,9vh,96px);max-width:760px;display:flex;flex-direction:column;align-items:center;gap:13px}
-.hb-title{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.6vw,54px);line-height:1.1;letter-spacing:.02em;margin:0}
-.hb-sub{font-size:14.5px;letter-spacing:.08em;color:rgba(255,255,255,.85);margin:0}
-.hb-btn{border:1px solid rgba(255,255,255,.85);color:#fff;background:transparent;padding:13px 32px;font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;transition:background .3s,color .3s;margin-top:6px}
-.hb-btn:hover{background:#fff;color:#1c2740}
-.hb-empty .hb-inner{padding-bottom:0;align-self:center}
-.hb-rv{position:absolute;inset:0;background-color:currentColor;-webkit-mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;opacity:.08}
-.hb-ph-0{background:radial-gradient(1100px 620px at 70% 16%,#3a5a8a,transparent 60%),linear-gradient(165deg,#243654,#2f4a73 55%,#1a2540);color:#fff}
-.hb-ph-1{background:#efe9df;color:#2f4a73}
-.hb-ph-1 .hb-title{color:#1c2740}
-.hb-ph-1 .hb-sub{color:#5a6478}
-.hb-ph-1 .hb-btn{border-color:#2f4a73;color:#2f4a73}
-.hb-ph-1 .hb-btn:hover{background:#2f4a73;color:#fff}
-.hb-ph-2{background:#16130f;color:#c99a6b}
-.hb-ph-2 .hb-title{color:#efe7d8}
-.hb-ph-2 .hb-sub{color:rgba(239,231,216,.72)}
-.hb-ph-2 .hb-btn{border-color:#c99a6b;color:#c99a6b}
-.hb-ph-2 .hb-btn:hover{background:#c99a6b;color:#16130f}
-@media(max-width:700px){.hb{min-height:60vh}.hb-hero{min-height:92svh}}
-
-/* админка: редактор баннеров */
-.block-hint{font-size:12.5px;color:var(--ink-soft);margin:-4px 0 14px;line-height:1.55}
-.hbr{display:grid;grid-template-columns:128px 1fr;gap:14px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;background:var(--card)}
-@media(max-width:640px){.hbr{grid-template-columns:1fr}}
-.hbr-prev{width:128px;height:84px;border-radius:8px;overflow:hidden;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;color:var(--ink-soft)}
-.hbr-prev img{width:100%;height:100%;object-fit:cover}
-.hbr-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
-.hbr-actions .btn-ghost{padding:8px 13px;font-size:12px;letter-spacing:.04em}
-.hbr-del{color:#a33333}
+.xt-wrap{max-width:440px}
+.piece-desc.xt-open{display:block;-webkit-line-clamp:unset;overflow:visible}
+.xt-more{display:inline-block;margin:-8px 0 14px;font-size:12.5px;letter-spacing:.04em;color:var(--accent);border-bottom:1px solid currentColor;padding-bottom:1px;transition:opacity .2s}
+.xt-more:hover{opacity:.7}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
