@@ -60,6 +60,11 @@ const DEFAULT_SETTINGS = {
   line2Desc: "Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.",
   luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
   manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
+  homeBanners: [
+    { id: "b1", image: null, title: "Коллекция 001", subtitle: "Первые вещи ROVELLE", buttonText: "Смотреть коллекцию", link: "shop" },
+    { id: "b2", image: null, title: "Heritage", subtitle: "Архив · Винтаж · Стокгольм", buttonText: "Открыть линию", link: "shop:Archive" },
+    { id: "b3", image: null, title: "Quiet Luxe", subtitle: "Тихая роскошь — скоро", buttonText: "Смотреть", link: "shop:Quiet Luxe" },
+  ],
   philosophyTitle: "Философия",
   philosophyText:
     "Rovelle — это одежда без логомании. Мы верим, что вещь должна говорить фактурой, швами и посадкой, а не надписью на груди. Каждая позиция отбирается вручную: архивные мотивы, честные материалы, ограниченные партии.",
@@ -323,6 +328,11 @@ function Store() {
   };
   const openProduct = (id) => { setSelectedId(id); go("product", id); };
   const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("shop"); };
+  const goBanner = (link) => {
+    if (link === "info") return go("info");
+    if (typeof link === "string" && link.startsWith("shop:")) return openCatalog(link.slice(5));
+    return openCatalog("Всё");
+  };
 
   // читаем адрес при загрузке и по кнопке «Назад»
   useEffect(() => {
@@ -526,8 +536,7 @@ function Store() {
 
       <main className={fade ? "page page-in" : "page"}>
       {view === "catalog" && (
-        <CatalogView settings={settings} products={products}
-          onLine={(l) => openCatalog(l)} onShop={() => openCatalog("Всё")} onInfo={() => go("info")} />
+        <CatalogView settings={settings} onGo={goBanner} />
       )}
       {view === "shop" && (
         <ShopView settings={settings} products={products} activeCat={activeCat} setActiveCat={setActiveCat}
@@ -706,73 +715,32 @@ function FAQ() {
   );
 }
 
-/* ============================ ГЛАВНАЯ: ПОЛНОЭКРАННАЯ АФИША ============================ */
-function CatalogView({ settings, products, onLine, onShop, onInfo }) {
-  const covers = React.useMemo(() => {
-    const arr = [];
-    products.forEach((p) => {
-      if ((p.images || []).length > 0) {
-        const g = getGallery(p);
-        if (g[0]?.src) arr.push({ id: p.id, src: g[0].src });
-      }
-    });
-    return arr.slice(0, 6);
-  }, [products]);
-
-  const [slide, setSlide] = useState(0);
-  useEffect(() => {
-    if (covers.length < 2) return;
-    const t = setInterval(() => setSlide((x) => (x + 1) % covers.length), 5200);
-    return () => clearInterval(t);
-  }, [covers.length]);
-
-  const ref = React.useRef(null);
-  const move = (e) => {
-    const el = ref.current;
-    if (!el || window.matchMedia("(pointer: coarse)").matches) return;
-    const r = el.getBoundingClientRect();
-    el.style.setProperty("--px", `${((e.clientX - r.left) / r.width - 0.5) * 16}`);
-    el.style.setProperty("--py", `${((e.clientY - r.top) / r.height - 0.5) * 10}`);
-  };
+/* ============================ ГЛАВНАЯ: КАМПАНИИ (Ralph Lauren style) ============================ */
+function CatalogView({ settings, onGo }) {
+  const banners = (settings.homeBanners && settings.homeBanners.length > 0)
+    ? settings.homeBanners
+    : DEFAULT_SETTINGS.homeBanners;
 
   return (
-    <section className="stage" ref={ref} onMouseMove={move}>
-      <div className="stage-media" aria-hidden="true">
-        {covers.length > 0 ? (
-          covers.map((c, i) => (
-            <img key={c.id} className={`stage-img ${i === slide ? "on" : ""}`} src={c.src} alt=""
-              loading={i === 0 ? "eager" : "lazy"} />
-          ))
-        ) : (
-          <>
-            <div className="stage-void" />
-            <div className="stage-rv" />
-          </>
-        )}
-      </div>
-      <div className="stage-shade" aria-hidden="true" />
-
-      <div className="stage-inner">
-        <h1 className="stage-name"><Wordmark animate /></h1>
-        {settings.heroSub && <p className="stage-tag">{settings.heroSub}</p>}
-        <div className="stage-cta">
-          <button className="btn-primary" onClick={onShop}>Смотреть коллекцию <ArrowRight size={15} /></button>
-          <button className="btn-ghost stage-ghost" onClick={onInfo}>О бренде</button>
-        </div>
-      </div>
-
-      {covers.length > 1 && (
-        <div className="stage-dots" aria-hidden="true">
-          {covers.map((_, i) => <span key={i} className={i === slide ? "on" : ""} />)}
-        </div>
-      )}
-
-      <div className="stage-lines">
-        <button onClick={() => onLine("Archive")}>Heritage</button>
-        <span>·</span>
-        <button onClick={() => onLine("Quiet Luxe")}>Quiet Luxe</button>
-      </div>
-    </section>
+    <div className="home">
+      {banners.map((bn, i) => {
+        const src = bn.image ? imgFull(bn.image) : null;
+        const Tag = i === 0 ? "h1" : "h2";
+        return (
+          <section key={bn.id || i} className={`hb ${i === 0 ? "hb-hero" : ""} ${src ? "" : `hb-empty hb-ph-${i % 3}`}`}>
+            {src
+              ? <img className="hb-img" src={src} alt={bn.title || "ROVELLE"} loading={i === 0 ? "eager" : "lazy"} />
+              : <span className="hb-rv" aria-hidden="true" />}
+            {src && <span className="hb-shade" aria-hidden="true" />}
+            <Reveal className="hb-inner">
+              {bn.title && <Tag className="hb-title">{bn.title}</Tag>}
+              {bn.subtitle && <p className="hb-sub">{bn.subtitle}</p>}
+              {bn.buttonText && <button className="hb-btn" onClick={() => onGo(bn.link)}>{bn.buttonText}</button>}
+            </Reveal>
+          </section>
+        );
+      })}
+    </div>
   );
 }
 
@@ -2016,6 +1984,21 @@ function SettingsForm({ settings, onSave, onCancel }) {
   const [err, setErr] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
+  // --- баннеры главной ---
+  const [bBusy, setBBusy] = useState(-1);
+  const hbList = f.homeBanners || [];
+  const setBanner = (i, k, v) => set("homeBanners", hbList.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const moveBanner = (i, d) => { const a = [...hbList]; const t = a[i]; a[i] = a[i + d]; a[i + d] = t; set("homeBanners", a); };
+  const delBanner = (i) => set("homeBanners", hbList.filter((_, j) => j !== i));
+  const addBanner = () => set("homeBanners", [...hbList, { id: `b${Date.now()}`, image: null, title: "", subtitle: "", buttonText: "Смотреть", link: "shop" }]);
+  const onBannerFile = async (i, file) => {
+    if (!file) return;
+    setBBusy(i); setErr("");
+    try { const img = await uploadProductImage(file); setBanner(i, "image", img); }
+    catch (e2) { setErr("Не удалось загрузить фото баннера"); }
+    setBBusy(-1);
+  };
+
   const uploadLogo = async (fileList) => {
     const file = fileList?.[0];
     if (!file) return;
@@ -2078,6 +2061,45 @@ function SettingsForm({ settings, onSave, onCancel }) {
           <Field label="Линия 1 — описание"><textarea rows={2} value={f.line1Desc} onChange={(e) => set("line1Desc", e.target.value)} /></Field>
           <Field label="Линия 2 — описание"><textarea rows={2} value={f.line2Desc} onChange={(e) => set("line2Desc", e.target.value)} /></Field>
           <Field label="Quiet Luxe — подробнее"><textarea rows={3} value={f.luxeText} onChange={(e) => set("luxeText", e.target.value)} /></Field>
+        </div>
+
+        <div className="form-block">
+          <h3 className="block-title">Главная — баннеры</h3>
+          <p className="block-hint">Кампанийные фото во весь экран, как у Ralph Lauren. Горизонтальные, шириной от 1600 px. Пока фото не загружено — на сайте фирменная заглушка.</p>
+          {hbList.map((bn, i) => (
+            <div className="hbr" key={bn.id || i}>
+              <div className="hbr-prev">
+                {bn.image ? <img src={imgThumb(bn.image)} alt="" /> : <span>Нет фото</span>}
+              </div>
+              <div className="hbr-fields">
+                <div className="row-2">
+                  <Field label="Заголовок"><input value={bn.title} onChange={(e) => setBanner(i, "title", e.target.value)} placeholder="Коллекция 001" /></Field>
+                  <Field label="Текст кнопки"><input value={bn.buttonText} onChange={(e) => setBanner(i, "buttonText", e.target.value)} placeholder="Смотреть" /></Field>
+                </div>
+                <Field label="Подпись (одна строка)"><input value={bn.subtitle} onChange={(e) => setBanner(i, "subtitle", e.target.value)} /></Field>
+                <Field label="Куда ведёт кнопка">
+                  <select value={bn.link} onChange={(e) => setBanner(i, "link", e.target.value)}>
+                    <option value="shop">Вся коллекция</option>
+                    <option value="shop:Archive">Линия Heritage</option>
+                    <option value="shop:Quiet Luxe">Линия Quiet Luxe</option>
+                    <option value="info">Страница «О бренде»</option>
+                  </select>
+                </Field>
+                <div className="hbr-actions">
+                  <label className="btn-ghost">
+                    {bBusy === i ? "Загрузка…" : bn.image ? "Заменить фото" : "Загрузить фото"}
+                    <input type="file" accept="image/*" hidden disabled={bBusy !== -1}
+                      onChange={(e) => { onBannerFile(i, e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
+                  {bn.image && <button type="button" className="btn-ghost" onClick={() => setBanner(i, "image", null)}>Убрать фото</button>}
+                  <button type="button" className="btn-ghost" onClick={() => moveBanner(i, -1)} disabled={i === 0}>↑</button>
+                  <button type="button" className="btn-ghost" onClick={() => moveBanner(i, 1)} disabled={i === hbList.length - 1}>↓</button>
+                  <button type="button" className="btn-ghost hbr-del" onClick={() => delBanner(i)}>Удалить</button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {hbList.length < 5 && <button type="button" className="btn-ghost" onClick={addBanner}>+ Добавить баннер</button>}
         </div>
 
         <div className="form-block">
@@ -3435,34 +3457,44 @@ html{scroll-behavior:smooth}
 @media(max-width:1000px){.shop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 16px}}
 
 /* полноэкранная афиша */
-.stage{position:relative;min-height:100svh;display:flex;align-items:flex-end;overflow:hidden;background:#1c2740;color:#fff}
-.stage-media{position:absolute;inset:-14px;transform:translate(calc(var(--px,0)*1px),calc(var(--py,0)*1px));transition:transform .5s cubic-bezier(.2,.7,.2,1)}
-.stage-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.5s ease;animation:stagezoom 16s ease-in-out infinite alternate}
-.stage-img.on{opacity:1}
-@keyframes stagezoom{from{transform:scale(1.03)}to{transform:scale(1.11)}}
-.stage-void{position:absolute;inset:0;background:radial-gradient(1100px 640px at 72% 18%,#3a5a8a,transparent 62%),linear-gradient(165deg,#233450,#2f4a73 55%,#182338)}
-.stage-rv{position:absolute;inset:0;background-color:#fff;-webkit-mask:url(/logo-mark.svg) center/min(52vw,520px) no-repeat;mask:url(/logo-mark.svg) center/min(52vw,520px) no-repeat;opacity:.07;animation:rvdrift 18s ease-in-out infinite alternate}
-@keyframes rvdrift{from{transform:translateY(-12px)}to{transform:translateY(14px)}}
-.stage-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,22,36,.16),transparent 32%,transparent 50%,rgba(13,18,30,.84))}
-.stage-inner{position:relative;z-index:2;padding:0 clamp(22px,6vw,84px) clamp(92px,15vh,150px);max-width:860px}
-.stage .wm-letters,.stage .wm-letters-static{color:#fff}
-.stage .wm-line{background:#fff;opacity:.85}
-.stage-name{margin:0 0 16px;font-size:clamp(38px,7vw,74px);line-height:1.08}
-.stage-tag{font-size:15px;line-height:1.65;color:rgba(255,255,255,.85);max-width:460px;margin:0 0 28px}
-.stage-cta{display:flex;gap:12px;flex-wrap:wrap}
-.stage-ghost{color:#fff;border-color:rgba(255,255,255,.45)}
-.stage-ghost:hover{border-color:#fff;background:rgba(255,255,255,.08);color:#fff}
-.stage-dots{position:absolute;left:clamp(22px,6vw,84px);bottom:36px;z-index:2;display:flex;gap:8px}
-.stage-dots span{width:22px;height:2px;background:rgba(255,255,255,.28);transition:background .4s}
-.stage-dots span.on{background:#fff}
-.stage-lines{position:absolute;right:clamp(20px,4vw,48px);bottom:32px;z-index:2;display:flex;align-items:center;gap:12px;font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.78)}
-.stage-lines button{color:inherit;font-size:inherit;letter-spacing:inherit;text-transform:inherit;transition:color .25s}
-.stage-lines button:hover{color:#fff}
-.stage-lines span{opacity:.5}
-@media(max-width:700px){.stage-lines{display:none}.stage-inner{padding-bottom:110px}}
 
 /* счётчик в каталоге */
 .shop-count{margin-top:7px;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* главная: кампанийные баннеры */
+.hb{position:relative;min-height:74vh;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;text-align:center;color:#fff}
+.hb-hero{min-height:100svh}
+.hb-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hb-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,14,24,.12),transparent 38%,transparent 52%,rgba(10,14,24,.58))}
+.hb-inner{position:relative;z-index:2;padding:0 24px clamp(54px,9vh,96px);max-width:760px;display:flex;flex-direction:column;align-items:center;gap:13px}
+.hb-title{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.6vw,54px);line-height:1.1;letter-spacing:.02em;margin:0}
+.hb-sub{font-size:14.5px;letter-spacing:.08em;color:rgba(255,255,255,.85);margin:0}
+.hb-btn{border:1px solid rgba(255,255,255,.85);color:#fff;background:transparent;padding:13px 32px;font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;transition:background .3s,color .3s;margin-top:6px}
+.hb-btn:hover{background:#fff;color:#1c2740}
+.hb-empty .hb-inner{padding-bottom:0;align-self:center}
+.hb-rv{position:absolute;inset:0;background-color:currentColor;-webkit-mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;opacity:.08}
+.hb-ph-0{background:radial-gradient(1100px 620px at 70% 16%,#3a5a8a,transparent 60%),linear-gradient(165deg,#243654,#2f4a73 55%,#1a2540);color:#fff}
+.hb-ph-1{background:#efe9df;color:#2f4a73}
+.hb-ph-1 .hb-title{color:#1c2740}
+.hb-ph-1 .hb-sub{color:#5a6478}
+.hb-ph-1 .hb-btn{border-color:#2f4a73;color:#2f4a73}
+.hb-ph-1 .hb-btn:hover{background:#2f4a73;color:#fff}
+.hb-ph-2{background:#16130f;color:#c99a6b}
+.hb-ph-2 .hb-title{color:#efe7d8}
+.hb-ph-2 .hb-sub{color:rgba(239,231,216,.72)}
+.hb-ph-2 .hb-btn{border-color:#c99a6b;color:#c99a6b}
+.hb-ph-2 .hb-btn:hover{background:#c99a6b;color:#16130f}
+@media(max-width:700px){.hb{min-height:60vh}.hb-hero{min-height:92svh}}
+
+/* админка: редактор баннеров */
+.block-hint{font-size:12.5px;color:var(--ink-soft);margin:-4px 0 14px;line-height:1.55}
+.hbr{display:grid;grid-template-columns:128px 1fr;gap:14px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;background:var(--card)}
+@media(max-width:640px){.hbr{grid-template-columns:1fr}}
+.hbr-prev{width:128px;height:84px;border-radius:8px;overflow:hidden;background:var(--paper);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;color:var(--ink-soft)}
+.hbr-prev img{width:100%;height:100%;object-fit:cover}
+.hbr-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.hbr-actions .btn-ghost{padding:8px 13px;font-size:12px;letter-spacing:.04em}
+.hbr-del{color:#a33333}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
