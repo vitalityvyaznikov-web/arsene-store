@@ -677,58 +677,9 @@ function Wordmark({ animate = false }) {
   );
 }
 
-/* --------- Сменяющиеся слова --------- */
-function RotatingWord({ words, interval = 2200 }) {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setI((x) => (x + 1) % words.length), interval);
-    return () => clearInterval(t);
-  }, [words.length, interval]);
-  return <span key={i} className="rot-word">{words[i]}</span>;
-}
-
 /* --------- Логотип бренда: точная векторная копия знака, цвет следует теме --------- */
 function Monogram({ size = 150 }) {
   return <div className="mono-img" style={{ height: size, width: size * 1.033 }} role="img" aria-label="ROVELLE" />;
-}
-
-/* --------- Первый экран: свет за курсором + параллакс --------- */
-function BrandHero({ settings, onShop, onInfo }) {
-  const ref = React.useRef(null);
-  const markRef = React.useRef(null);
-
-  useEffect(() => {
-    const onScroll = () => {
-      if (markRef.current) markRef.current.style.transform = `translate(-50%, calc(-50% + ${window.scrollY * 0.22}px))`;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const onMove = (e) => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    el.style.setProperty("--mx", `${e.clientX - r.left}px`);
-    el.style.setProperty("--my", `${e.clientY - r.top}px`);
-  };
-
-  return (
-    <section className="bhero" ref={ref} onMouseMove={onMove}>
-      <div className="bhero-glow" aria-hidden="true" />
-      <div className="bhero-mark" ref={markRef} aria-hidden="true" />
-      <h1 className="bhero-name"><Wordmark animate /></h1>
-      <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
-      <Reveal delay={850}>
-        <div className="bhero-cta">
-          <button className="btn-primary" onClick={onShop}>Смотреть коллекцию <ArrowRight size={15} /></button>
-          <button className="btn-ghost" onClick={onInfo}>О бренде</button>
-        </div>
-      </Reveal>
-      <div className="bhero-est">{settings.heroEyebrow} · <RotatingWord words={["Архив", "Стокгольм", "Винтаж", "Без логотипов"]} /></div>
-      <div className="bhero-scroll" aria-hidden="true"><span /></div>
-    </section>
-  );
 }
 
 /* --------- Дополнительная информация (аккордеон) --------- */
@@ -755,53 +706,73 @@ function FAQ() {
   );
 }
 
+/* ============================ ГЛАВНАЯ: ПОЛНОЭКРАННАЯ АФИША ============================ */
 function CatalogView({ settings, products, onLine, onShop, onInfo }) {
-  const tickerWords = ["Heritage", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
-  const coverFor = (line) => {
-    const p = products.find((x) => x.cat === line && (x.images || []).length > 0);
-    return p ? getGallery(p)[0].src : null;
+  const covers = React.useMemo(() => {
+    const arr = [];
+    products.forEach((p) => {
+      if ((p.images || []).length > 0) {
+        const g = getGallery(p);
+        if (g[0]?.src) arr.push({ id: p.id, src: g[0].src });
+      }
+    });
+    return arr.slice(0, 6);
+  }, [products]);
+
+  const [slide, setSlide] = useState(0);
+  useEffect(() => {
+    if (covers.length < 2) return;
+    const t = setInterval(() => setSlide((x) => (x + 1) % covers.length), 5200);
+    return () => clearInterval(t);
+  }, [covers.length]);
+
+  const ref = React.useRef(null);
+  const move = (e) => {
+    const el = ref.current;
+    if (!el || window.matchMedia("(pointer: coarse)").matches) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty("--px", `${((e.clientX - r.left) / r.width - 0.5) * 16}`);
+    el.style.setProperty("--py", `${((e.clientY - r.top) / r.height - 0.5) * 10}`);
   };
-  const countFor = (line) => products.filter((x) => x.cat === line).length;
 
   return (
-    <>
-      <BrandHero settings={settings} onShop={onShop} onInfo={onInfo} />
+    <section className="stage" ref={ref} onMouseMove={move}>
+      <div className="stage-media" aria-hidden="true">
+        {covers.length > 0 ? (
+          covers.map((c, i) => (
+            <img key={c.id} className={`stage-img ${i === slide ? "on" : ""}`} src={c.src} alt=""
+              loading={i === 0 ? "eager" : "lazy"} />
+          ))
+        ) : (
+          <>
+            <div className="stage-void" />
+            <div className="stage-rv" />
+          </>
+        )}
+      </div>
+      <div className="stage-shade" aria-hidden="true" />
 
-      {/* ---------- Бегущая строка ---------- */}
-      <div className="ticker" aria-hidden="true">
-        <div className="ticker-track">
-          {[...tickerWords, ...tickerWords, ...tickerWords].map((w, i) => (
-            <span key={i} className="ticker-item">{w}<i>·</i></span>
-          ))}
+      <div className="stage-inner">
+        <h1 className="stage-name"><Wordmark animate /></h1>
+        {settings.heroSub && <p className="stage-tag">{settings.heroSub}</p>}
+        <div className="stage-cta">
+          <button className="btn-primary" onClick={onShop}>Смотреть коллекцию <ArrowRight size={15} /></button>
+          <button className="btn-ghost stage-ghost" onClick={onInfo}>О бренде</button>
         </div>
       </div>
 
-      {/* ---------- Два входа: Heritage / Quiet Luxe ---------- */}
-      <section className="doors">
-        {[["Archive", "Heritage", "door-heritage"], ["Quiet Luxe", "Quiet Luxe", "door-luxe"]].map(([line, label, cls]) => {
-          const cover = coverFor(line);
-          const n = countFor(line);
-          return (
-            <button key={line} className={`door ${cls} ${cover ? "" : "door-empty"}`} onClick={() => onLine(line)}>
-              {cover
-                ? <img className="door-img" src={cover} alt={label} loading="lazy" />
-                : <span className="door-mark" aria-hidden="true" />}
-              <span className="door-shade" aria-hidden="true" />
-              <span className="door-info">
-                <span className="door-name">{label}</span>
-                <span className="door-sub">{n > 0 ? plural(n, "вещь", "вещи", "вещей") : "скоро"}</span>
-              </span>
-              <span className="door-go"><ArrowRight size={20} /></span>
-            </button>
-          );
-        })}
-      </section>
+      {covers.length > 1 && (
+        <div className="stage-dots" aria-hidden="true">
+          {covers.map((_, i) => <span key={i} className={i === slide ? "on" : ""} />)}
+        </div>
+      )}
 
-      {/* ---------- Одна кнопка ---------- */}
-      <div className="home-cta">
-        <button className="btn-ghost" onClick={onShop}>Вся коллекция <ArrowRight size={15} /></button>
+      <div className="stage-lines">
+        <button onClick={() => onLine("Archive")}>Heritage</button>
+        <span>·</span>
+        <button onClick={() => onLine("Quiet Luxe")}>Quiet Luxe</button>
       </div>
-    </>
+    </section>
   );
 }
 
@@ -820,6 +791,7 @@ function ShopView({ settings, products, activeCat, setActiveCat, onOpen, query, 
           <div>
             <div className="drop-eyebrow">Коллекция 001</div>
             <h1 className="drop-title">{catLabel(activeCat)}</h1>
+            <div className="shop-count">{plural(list.length, "вещь", "вещи", "вещей")}</div>
           </div>
           <div className="drop-tools">
             <div className="line-tabs">
@@ -3046,25 +3018,9 @@ html{scroll-behavior:smooth}
 .mono-img{display:block;margin:0 auto;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;transition:background-color .6s ease}
 
 /* первый экран */
-.bhero{min-height:clamp(460px,70svh,640px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:44px 24px 52px;position:relative;overflow:hidden}
-.bhero-glow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(460px circle at var(--mx,50%) var(--my,38%),rgba(var(--glow),.12),transparent 68%);transition:background .1s}
-.bhero-mark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:clamp(340px,52vw,660px);aspect-ratio:1.033/1;background-color:var(--accent);-webkit-mask:url(/logo-mark.svg) center/contain no-repeat;mask:url(/logo-mark.svg) center/contain no-repeat;opacity:.07;pointer-events:none;user-select:none}
-.bhero-name{margin:0 0 22px;font-size:clamp(40px,8.4vw,88px);line-height:1.1;position:relative}
-.bhero-name .wm-line{margin-top:.1em}
-.bhero-tag{max-width:520px;color:var(--ink-soft);font-size:16px;line-height:1.7;margin-bottom:34px;position:relative}
-.bhero-cta{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;position:relative}
-.bhero-est{position:absolute;bottom:64px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-soft)}
-.bhero-scroll{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);width:1px;height:30px;background:var(--line);overflow:hidden}
-.bhero-scroll span{display:block;width:100%;height:12px;background:var(--accent);animation:scrolldot 1.8s ease-in-out infinite}
 @keyframes scrolldot{0%{transform:translateY(-14px)}70%{transform:translateY(32px)}100%{transform:translateY(32px)}}
 
 /* бегущая строка */
-.ticker{overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 0;background:var(--card)}
-.ticker-track{display:flex;width:max-content;animation:ticker 36s linear infinite}
-.ticker-item{font-family:var(--serif);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);display:inline-flex;align-items:center;white-space:nowrap}
-.ticker-item i{font-style:normal;color:var(--accent);margin:0 22px}
-@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-33.333%)}}
-.ticker:hover .ticker-track{animation-play-state:paused}
 
 /* две линии */
 /* фоновая буква-знак, проявляется при наведении */
@@ -3215,13 +3171,6 @@ html{scroll-behavior:smooth}
   .mm-social{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:100px;padding:10px 18px;font-size:13px;color:var(--ink);text-decoration:none}
 
   /* первый экран короче и живее */
-  .bhero{min-height:auto;padding:54px 22px 66px}
-  .bhero-mark{width:clamp(280px,82vw,420px);opacity:.07}
-  .bhero-tag{font-size:15px}
-  .bhero-cta{width:100%;flex-direction:column;gap:10px}
-  .bhero-cta .btn-primary,.bhero-cta .btn-ghost{width:100%}
-  .bhero-est{position:static;transform:none;margin-top:34px}
-  .bhero-scroll{display:none}
 
   /* цифры в 2 колонки крупнее */
 
@@ -3256,7 +3205,6 @@ html{scroll-behavior:smooth}
 }
 
 @media(max-width:520px){
-  .ticker-item{font-size:13px}
   .to-top{right:14px;bottom:14px;width:42px;height:42px}
 }
 
@@ -3366,7 +3314,7 @@ html{scroll-behavior:smooth}
 /* мягкое свечение вокруг активной вкладки уже задано box-shadow */
 
 /* плавная смена темы для крупных тёмных блоков */
-.drop,.ticker{transition:background .8s ease}
+.drop{transition:background .8s ease}
 
 /* переключатель линий в hero */
 
@@ -3479,37 +3427,42 @@ html{scroll-behavior:smooth}
 .piece-tag{position:absolute;top:14px;left:14px;background:var(--ink);color:var(--paper);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:5px 12px;border-radius:2px;z-index:3}
 
 /* два входа на главной */
-.doors{display:grid;grid-template-columns:1fr 1fr;min-height:clamp(420px,64vh,620px)}
-@media(max-width:820px){.doors{grid-template-columns:1fr}.door{min-height:300px}}
-.door{position:relative;overflow:hidden;cursor:pointer;display:block;background:var(--card);text-align:left}
-.door-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#fff;transition:transform 1.1s cubic-bezier(.2,.7,.2,1)}
-.door:hover .door-img{transform:scale(1.05)}
-.door-mark{position:absolute;inset:0;background-color:currentColor;-webkit-mask:url(/logo-mark.svg) center/38% no-repeat;mask:url(/logo-mark.svg) center/38% no-repeat;opacity:.1;transition:opacity .4s}
-.door:hover .door-mark{opacity:.16}
-.door-shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(12,16,26,.6))}
-.door-heritage{color:#2f4a73}
-.door-luxe{background:#16130f;color:#c99a6b}
-.door-luxe .door-shade{background:linear-gradient(180deg,transparent 40%,rgba(8,6,4,.72))}
-.door-info{position:absolute;left:34px;bottom:30px;z-index:2;display:flex;flex-direction:column;gap:6px}
-.door-name{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.4vw,52px);color:#fff;line-height:1.05}
-.door-sub{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.75)}
-.door-go{position:absolute;right:28px;bottom:30px;z-index:2;width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);backdrop-filter:blur(6px);display:grid;place-items:center;color:#fff;transition:transform .4s cubic-bezier(.2,.7,.2,1),background .3s}
-.door:hover .door-go{transform:translateX(6px);background:rgba(255,255,255,.24)}
-.door-empty .door-shade{display:none}
-.door-empty .door-name{color:var(--ink)}
-.door-empty .door-sub{color:var(--ink-soft)}
-.door-empty .door-go{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
-.door-luxe.door-empty{background:#16130f}
-.door-luxe.door-empty .door-name{color:#efe7d8}
-.door-luxe.door-empty .door-sub{color:rgba(239,231,216,.6)}
-.door-luxe.door-empty .door-go{background:rgba(201,154,107,.16);color:#c99a6b}
-.home-cta{display:flex;justify-content:center;padding:44px 20px 78px}
 
 /* страница каталога */
 .shop{max-width:1280px;margin:0 auto;padding:44px 32px 100px}
 @media(max-width:760px){.shop{padding:28px 18px 70px}}
 .shop-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:52px 26px;margin-top:8px}
 @media(max-width:1000px){.shop-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:36px 16px}}
+
+/* полноэкранная афиша */
+.stage{position:relative;min-height:100svh;display:flex;align-items:flex-end;overflow:hidden;background:#1c2740;color:#fff}
+.stage-media{position:absolute;inset:-14px;transform:translate(calc(var(--px,0)*1px),calc(var(--py,0)*1px));transition:transform .5s cubic-bezier(.2,.7,.2,1)}
+.stage-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.5s ease;animation:stagezoom 16s ease-in-out infinite alternate}
+.stage-img.on{opacity:1}
+@keyframes stagezoom{from{transform:scale(1.03)}to{transform:scale(1.11)}}
+.stage-void{position:absolute;inset:0;background:radial-gradient(1100px 640px at 72% 18%,#3a5a8a,transparent 62%),linear-gradient(165deg,#233450,#2f4a73 55%,#182338)}
+.stage-rv{position:absolute;inset:0;background-color:#fff;-webkit-mask:url(/logo-mark.svg) center/min(52vw,520px) no-repeat;mask:url(/logo-mark.svg) center/min(52vw,520px) no-repeat;opacity:.07;animation:rvdrift 18s ease-in-out infinite alternate}
+@keyframes rvdrift{from{transform:translateY(-12px)}to{transform:translateY(14px)}}
+.stage-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(16,22,36,.16),transparent 32%,transparent 50%,rgba(13,18,30,.84))}
+.stage-inner{position:relative;z-index:2;padding:0 clamp(22px,6vw,84px) clamp(92px,15vh,150px);max-width:860px}
+.stage .wm-letters,.stage .wm-letters-static{color:#fff}
+.stage .wm-line{background:#fff;opacity:.85}
+.stage-name{margin:0 0 16px;font-size:clamp(38px,7vw,74px);line-height:1.08}
+.stage-tag{font-size:15px;line-height:1.65;color:rgba(255,255,255,.85);max-width:460px;margin:0 0 28px}
+.stage-cta{display:flex;gap:12px;flex-wrap:wrap}
+.stage-ghost{color:#fff;border-color:rgba(255,255,255,.45)}
+.stage-ghost:hover{border-color:#fff;background:rgba(255,255,255,.08);color:#fff}
+.stage-dots{position:absolute;left:clamp(22px,6vw,84px);bottom:36px;z-index:2;display:flex;gap:8px}
+.stage-dots span{width:22px;height:2px;background:rgba(255,255,255,.28);transition:background .4s}
+.stage-dots span.on{background:#fff}
+.stage-lines{position:absolute;right:clamp(20px,4vw,48px);bottom:32px;z-index:2;display:flex;align-items:center;gap:12px;font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.78)}
+.stage-lines button{color:inherit;font-size:inherit;letter-spacing:inherit;text-transform:inherit;transition:color .25s}
+.stage-lines button:hover{color:#fff}
+.stage-lines span{opacity:.5}
+@media(max-width:700px){.stage-lines{display:none}.stage-inner{padding-bottom:110px}}
+
+/* счётчик в каталоге */
+.shop-count{margin-top:7px;font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft)}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 `;
