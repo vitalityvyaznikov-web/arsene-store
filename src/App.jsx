@@ -736,8 +736,10 @@ function HeroSlider({ banners, onGo }) {
       {banners.map((bn, k) => {
         const src = bn.image ? imgFull(bn.image) : null;
         const Tag = k === 0 ? "h1" : "h2";
+        // заглушка по смыслу слайда: Heritage — фирменный синий, Quiet Luxe — тёмное золото
+        const ph = (bn.link || "").includes("Quiet Luxe") ? 2 : (bn.link || "").includes("Archive") ? 1 : 0;
         return (
-          <div key={bn.id || k} className={`hs-slide ${k === i ? "on" : ""} ${src ? "" : `hs-empty hb-ph-${k % 3}`}`} aria-hidden={k !== i}>
+          <div key={bn.id || k} className={`hs-slide ${k === i ? "on" : ""} ${src ? "" : `hs-empty hb-ph-${ph}`}`} aria-hidden={k !== i}>
             {src
               ? <img className="hs-img" src={src} alt={bn.title || "ROVELLE"} loading={k === 0 ? "eager" : "lazy"} />
               : <span className="hb-rv" aria-hidden="true" />}
@@ -772,8 +774,8 @@ function HeroSlider({ banners, onGo }) {
 /* --------- Два мира: интерактивный сплит линий бренда --------- */
 function Worlds({ settings, onGo }) {
   const worlds = [
-    { key: "Archive", cls: "world-h", no: "01", name: settings.line1Name || "Heritage", tag: "Архив · Винтаж · Стокгольм" },
-    { key: "Quiet Luxe", cls: "world-l", no: "02", name: settings.line2Name || "Quiet Luxe", tag: "Шерсть · Кашемир · Тишина" },
+    { key: "Archive", cls: "world-h", no: "01", name: settings.line1Name || "Heritage", tag: "Архив · Винтаж · Стокгольм", desc: settings.line1Desc },
+    { key: "Quiet Luxe", cls: "world-l", no: "02", name: settings.line2Name || "Quiet Luxe", tag: "Шерсть · Кашемир · Тишина", desc: settings.line2Desc },
   ];
   return (
     <section className="worlds">
@@ -785,6 +787,7 @@ function Worlds({ settings, onGo }) {
             <span className="world-no">Линия {w.no}</span>
             <span className="world-name">{w.name}</span>
             <span className="world-tag">{w.tag}</span>
+            {w.desc && <span className="world-desc">{w.desc}</span>}
             <span className="world-cta">Открыть <ArrowRight size={15} /></span>
           </span>
         </button>
@@ -998,6 +1001,15 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         </div>
       </div>
 
+      {/* ---------- Философия ---------- */}
+      <section className="philo">
+        <Reveal>
+          <Monogram size={54} />
+          <div className="drop-eyebrow philo-eyebrow">{settings.philosophyTitle || "Философия"}</div>
+          <p className="philo-text">{settings.philosophyText}</p>
+        </Reveal>
+      </section>
+
       {/* ---------- Два мира ---------- */}
       <Reveal><Worlds settings={settings} onGo={goSlide} /></Reveal>
 
@@ -1011,6 +1023,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
             <div>
               <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 2" : "Коллекция 001 · Heritage"}</div>
               <h2 className="drop-title">{activeCat === "Quiet Luxe" ? "Quiet Luxe" : "Первые вещи"}</h2>
+              <p className="drop-sub">Каждая вещь отобрана вручную и выпущена ограниченной партией. Подробности — внутри карточки.</p>
             </div>
             <div className="drop-tools">
               <div className="line-tabs">
@@ -1046,6 +1059,25 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
             ))}
           </div>
         )}
+      </section>
+
+      {/* ---------- Ручной отбор ---------- */}
+      <section className="craft-home">
+        <Reveal>
+          <div className="drop-eyebrow">Ручной отбор</div>
+          <h2 className="drop-title" style={{ marginBottom: 30 }}>Что мы проверяем в каждой вещи</h2>
+        </Reveal>
+        <div className="craft-grid">
+          {[
+            ["01", "Швы и фактуры", "Архивные стирки, честный деним, необычные обработки. Вещь интересно рассматривать вблизи."],
+            ["02", "История вещи", "Каждая позиция выглядит как архивная находка, но сделана как новая — и продумана до мелочей."],
+            ["03", "Посадка", "Стокгольмская чистота силуэта. Никакого визуального шума — форма говорит сама."],
+          ].map(([nn, t, d], ci) => (
+            <Reveal key={nn} delay={ci * 90}>
+              <div className="craft-card"><span className="craft-no">{nn}</span><h3>{t}</h3><p>{d}</p></div>
+            </Reveal>
+          ))}
+        </div>
       </section>
 
       {/* ---------- Манифест ---------- */}
@@ -3837,11 +3869,9 @@ html{scroll-behavior:smooth}
 @keyframes hsfill{to{transform:scaleX(1)}}
 .hb-rv{position:absolute;inset:0;background-color:currentColor;-webkit-mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;opacity:.08}
 .hb-ph-0{background:radial-gradient(1100px 620px at 70% 16%,#3a5a8a,transparent 60%),linear-gradient(165deg,#243654,#2f4a73 55%,#1a2540);color:#fff}
-.hb-ph-1{background:#efe9df;color:#2f4a73}
-.hb-ph-1 .hs-title{color:#1c2740}
-.hb-ph-1 .hs-sub{color:#5a6478}
-.hb-ph-1 .hb-btn{border-color:#2f4a73;color:#2f4a73}
-.hb-ph-1 .hb-btn:hover{background:#2f4a73;color:#fff}
+.hb-ph-1{background:radial-gradient(1000px 600px at 28% 18%,#46648e,transparent 62%),linear-gradient(205deg,#31507f,#1c2c49 65%);color:#dfe7f2}
+.hb-ph-1 .hs-title{color:#fff}
+.hb-ph-1 .hs-sub{color:rgba(223,231,242,.8)}
 .hb-ph-2{background:#16130f;color:#c99a6b}
 .hb-ph-2 .hs-title{color:#efe7d8}
 .hb-ph-2 .hs-sub{color:rgba(239,231,216,.72)}
@@ -3883,6 +3913,17 @@ html{scroll-behavior:smooth}
 .ring-meta i{font-style:normal;font-size:12px;color:var(--ink-soft)}
 .podium-cta{margin-top:28px}
 @media(max-width:700px){.podium{padding:64px 14px 64px}.ring-stage{height:340px}}
+
+/* ---- Главная: философия ---- */
+.philo{max-width:840px;margin:0 auto;padding:78px 24px 72px;text-align:center}
+.philo-eyebrow{margin-top:20px}
+.philo-text{font-family:var(--serif);font-size:clamp(20px,2.8vw,28px);line-height:1.55;color:var(--ink);margin-top:6px}
+
+/* ---- Главная: описания и подписи ---- */
+.world-desc{font-size:13.5px;line-height:1.65;opacity:.78;max-width:400px}
+.drop-sub{color:var(--ink-soft);font-size:14px;line-height:1.6;margin-top:10px;max-width:440px}
+.craft-home{max-width:1080px;margin:0 auto;padding:82px 24px 0;text-align:center}
+.craft-home .craft-grid{text-align:left}
 
 /* ---- Главная: манифест ---- */
 .manif{max-width:880px;margin:0 auto;padding:104px 24px 96px;text-align:center}
