@@ -49,7 +49,7 @@ const normalizeProduct = (p = {}) => ({
 
 const DEFAULT_SETTINGS = {
   brand: BRAND,
-  announce: "Коллекция 001 — уже на сайте · Доставка по всей России",
+  announce: "Rovelle — доставка по всей России · Возврат 14 дней",
   heroEyebrow: "Menswear · Est. 2026",
   heroTitle1: "Тихая",
   heroTitleEm: "роскошь",
@@ -61,7 +61,6 @@ const DEFAULT_SETTINGS = {
   luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
   manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
   homeBanners: [
-    { id: "b1", image: null, title: "Коллекция 001", subtitle: "Первые вещи ROVELLE", buttonText: "Смотреть коллекцию", link: "shop" },
     { id: "b2", image: null, title: "Heritage", subtitle: "Архив · Винтаж · Стокгольм", buttonText: "Открыть линию", link: "shop:Archive" },
     { id: "b3", image: null, title: "Quiet Luxe", subtitle: "Тихая роскошь — скоро", buttonText: "Смотреть", link: "shop:Quiet Luxe" },
   ],
@@ -87,7 +86,7 @@ const LINES = ["Archive", "Quiet Luxe"];
 const LINE_LABELS = { "Archive": "Rovelle Heritage", "Quiet Luxe": "Rovelle Quiet Luxe" };
 const LINE_SHORT = { "Archive": "Heritage", "Quiet Luxe": "Quiet Luxe" };  // короткое имя линии
 const catLabel = (c) => (c === "Всё" ? "Вся коллекция" : LINE_SHORT[c] || c);
-const CATEGORIES = ["Всё", ...LINES];
+const CATEGORIES = [...LINES]; // на сайте только две линии, без «общей» вкладки
 const SHOP_CATS = LINES;
 const TAGS = ["", "Новинка", "Sale", "Архив", "Лимит"];
 const TYPES = [
@@ -195,7 +194,7 @@ function Store() {
   const [products, setProducts] = useState(null);
   const [view, setView] = useState("catalog");
   const [selectedId, setSelectedId] = useState(null);
-  const [activeCat, setActiveCat] = useState("Всё");
+  const [activeCat, setActiveCat] = useState("Archive");
   const [menuOpen, setMenuOpen] = useState(false);
   const [cart, setCart] = useState([]);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -326,7 +325,7 @@ function Store() {
     try { if (window.ym) window.ym(window.__ym_id, "hit", hash); } catch (e) {}
   };
   const openProduct = (id) => { setSelectedId(id); go("product", id); };
-  const openCatalog = (cat) => { if (cat) setActiveCat(cat); go("catalog"); };
+  const openCatalog = (cat) => { if (cat) setActiveCat(cat === "Всё" ? "Archive" : cat); go("catalog"); };
 
   // читаем адрес при загрузке и по кнопке «Назад»
   useEffect(() => {
@@ -695,9 +694,14 @@ function Monogram({ size = 150 }) {
 /* --------- Меньше движения: уважение системной настройки --------- */
 const REDUCED_MOTION = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/* --------- Первый экран: полноэкранное слайд-шоу (автоплей, свайп, Ken Burns) --------- */
-function HeroSlider({ banners, onGo }) {
-  const n = banners.length;
+/* --------- Первый экран: полноэкранное слайд-шоу (автоплей, свайп, Ken Burns).
+   Первый слайд всегда брендовый: ROVELLE и логотип на фоне. --------- */
+function HeroSlider({ banners, settings, onGo }) {
+  const slides = React.useMemo(
+    () => [{ id: "brand", brand: true }, ...banners.filter((bn) => ((bn.title || "").trim().toLowerCase() !== "коллекция 001"))],
+    [banners]
+  );
+  const n = slides.length;
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
   const touch = React.useRef(null);
@@ -733,20 +737,35 @@ function HeroSlider({ banners, onGo }) {
         touch.current = null;
       }}
     >
-      {banners.map((bn, k) => {
+      {slides.map((bn, k) => {
+        // брендовый слайд: имя и логотип, без выбора коллекций
+        if (bn.brand) {
+          return (
+            <div key="brand" className={`hs-slide hs-empty hs-brand hb-ph-0 ${k === i ? "on" : ""}`} aria-hidden={k !== i}>
+              <span className="hb-rv" aria-hidden="true" />
+              {k === i && (
+                <div className="hs-inner">
+                  {settings.heroEyebrow && <div className="hs-eyebrow">{settings.heroEyebrow}</div>}
+                  <h1 className="hs-wm"><Wordmark animate /></h1>
+                  {settings.heroSub && <p className="hs-sub hs-brand-sub">{settings.heroSub}</p>}
+                  <button className="hb-btn" onClick={() => onGo("shop")}>Смотреть коллекцию</button>
+                </div>
+              )}
+            </div>
+          );
+        }
         const src = bn.image ? imgFull(bn.image) : null;
-        const Tag = k === 0 ? "h1" : "h2";
         // заглушка по смыслу слайда: Heritage — фирменный синий, Quiet Luxe — тёмное золото
         const ph = (bn.link || "").includes("Quiet Luxe") ? 2 : (bn.link || "").includes("Archive") ? 1 : 0;
         return (
           <div key={bn.id || k} className={`hs-slide ${k === i ? "on" : ""} ${src ? "" : `hs-empty hb-ph-${ph}`}`} aria-hidden={k !== i}>
             {src
-              ? <img className="hs-img" src={src} alt={bn.title || "ROVELLE"} loading={k === 0 ? "eager" : "lazy"} />
+              ? <img className="hs-img" src={src} alt={bn.title || "ROVELLE"} loading={k <= 1 ? "eager" : "lazy"} />
               : <span className="hb-rv" aria-hidden="true" />}
             {src && <span className="hb-shade" aria-hidden="true" />}
             {k === i && (
               <div className="hs-inner">
-                {bn.title && <Tag className="hs-title">{bn.title}</Tag>}
+                {bn.title && <h2 className="hs-title">{bn.title}</h2>}
                 {bn.subtitle && <p className="hs-sub">{bn.subtitle}</p>}
                 {bn.buttonText && <button className="hb-btn" onClick={() => onGo(bn.link)}>{bn.buttonText}</button>}
               </div>
@@ -759,7 +778,7 @@ function HeroSlider({ banners, onGo }) {
           <button className="hs-nav hs-prev" onClick={() => go(i - 1)} aria-label="Предыдущий слайд"><ArrowLeft size={20} /></button>
           <button className="hs-nav hs-next" onClick={() => go(i + 1)} aria-label="Следующий слайд"><ArrowRight size={20} /></button>
           <div className="hs-dots">
-            {banners.map((_, k) => (
+            {slides.map((_, k) => (
               <button key={k} className={`hs-dot ${k === i ? "on" : ""}`} onClick={() => go(k)} aria-label={`Слайд ${k + 1}`}>
                 {k === i && !reduced && <span className={`hs-fill ${paused ? "hold" : ""}`} />}
               </button>
@@ -796,80 +815,123 @@ function Worlds({ settings, onGo }) {
   );
 }
 
-/* --------- 3D-подиум: кольцо из вещей, вращается само и от перетаскивания --------- */
-function ShowcaseRing({ products, onOpen, onShopAll }) {
-  const items = React.useMemo(() => {
-    const base = products.filter((p) => p.stock > 0).slice(0, 10);
-    if (base.length < 3) return [];
-    const list = [...base];
-    for (let k = 0; list.length < 6; k++) list.push(base[k % base.length]); // добираем кольцо до 6 карточек
-    return list;
-  }, [products]);
+/* --------- 3D-подиум: вещи кружат по подиуму и поворачиваются нужным ракурсом.
+   Фото ракурсов лежат в public/podium: {вещь}-{0|45|90|135|180}.jpg (угол обзора в градусах).
+   Карточка связывается с товаром каталога по названию — тогда клик открывает вещь. --------- */
+const PODIUM_ITEMS = [
+  { key: "bomber", title: "Бомбер", sub: "Замша · Шерсть", match: ["бомбер"], angles: [0, 90, 180] },
+  { key: "jeans", title: "Джинсы", sub: "Деним", match: ["джинс"], angles: [0, 90, 180] },
+  { key: "cardigan", title: "Кардиган", sub: "Шерсть · Мех", match: ["кардиган"], angles: [0, 45, 90, 135, 180] },
+  { key: "tee-blue", title: "Футболка синяя", sub: "Хлопок", match: ["футболка синяя", "синяя футболка"], angles: [0, 45, 90, 135, 180] },
+  { key: "tee-white", title: "Футболка белая", sub: "Хлопок", match: ["футболка белая", "белая футболка"], angles: [0, 45, 90, 135, 180] },
+];
 
-  const [cardW, setCardW] = useState(() => (typeof window !== "undefined" && window.innerWidth < 700 ? 150 : 205));
+function ShowcaseRing({ products, onOpen, onShopAll }) {
+  const n = PODIUM_ITEMS.length;
+  const [cardW, setCardW] = useState(() => (typeof window !== "undefined" && window.innerWidth < 700 ? 156 : 230));
   useEffect(() => {
-    const on = () => setCardW(window.innerWidth < 700 ? 150 : 205);
+    const on = () => setCardW(window.innerWidth < 700 ? 156 : 230);
     window.addEventListener("resize", on);
     return () => window.removeEventListener("resize", on);
   }, []);
+  const radius = cardW < 200 ? 195 : 275;
+  const cardH = Math.round(cardW * 1.34);
 
-  const n = items.length;
-  const radius = n ? Math.round(cardW / 2 / Math.tan(Math.PI / n)) + 46 : 0;
-  const cardH = Math.round(cardW * 1.42);
+  // вещь каталога для карточки подиума — по совпадению названия
+  const productFor = (it) => {
+    const keys = [...it.match, it.title.toLowerCase()];
+    return (products || []).find((p) => keys.some((m) => (p.name || "").toLowerCase().includes(m)));
+  };
 
-  const ringRef = React.useRef(null);
-  const ang = React.useRef(0);        // текущий угол кольца
+  const cardRefs = React.useRef([]);
+  const imgRefs = React.useRef({});
+  const lastShot = React.useRef({});
+  const ang = React.useRef(0);        // угол «карусели»
   const vel = React.useRef(0);        // инерция после броска
   const dragging = React.useRef(false);
-  const moved = React.useRef(0);      // сколько пикселей протянули (отличаем клик от драга)
+  const moved = React.useRef(0);      // отличаем клик от перетаскивания
   const lastX = React.useRef(0);
 
   useEffect(() => {
-    if (!n) return;
     const reduced = REDUCED_MOTION();
     let raf, last = performance.now();
+    const step = 360 / n;
     const tick = (t) => {
       const dt = Math.min(64, t - last); last = t;
       if (!dragging.current) {
-        if (!reduced && !document.hidden) ang.current += dt * 0.006; // ~6°/сек в покое
+        if (!reduced && !document.hidden) ang.current += dt * 0.005; // ~5°/сек в покое
         ang.current += vel.current; vel.current *= 0.95;
       }
-      if (ringRef.current) ringRef.current.style.transform = `translateZ(${-radius}px) rotateX(-4deg) rotateY(${ang.current}deg)`;
+      for (let k = 0; k < n; k++) {
+        const el = cardRefs.current[k];
+        if (!el) continue;
+        const total = step * k + ang.current;
+        // карточка всегда лицом к зрителю, но кружит по подиуму
+        el.style.transform = `rotateY(${total}deg) translateZ(${radius}px) rotateY(${-total}deg)`;
+        let f = ((total % 360) + 360) % 360;
+        if (f > 180) f -= 360;
+        el.style.opacity = String(0.4 + 0.6 * ((1 + Math.cos((f * Math.PI) / 180)) / 2));
+        // ракурс: чем дальше вещь уехала вбок/назад, тем сильнее она «повёрнута»
+        const it = PODIUM_ITEMS[k];
+        const af = Math.abs(f);
+        let best = it.angles[0];
+        for (const a of it.angles) if (Math.abs(a - af) < Math.abs(best - af)) best = a;
+        const mir = f < 0 && best !== 0 && best !== 180;
+        const sig = `${best}${mir ? "m" : ""}`;
+        if (lastShot.current[k] !== sig) {
+          lastShot.current[k] = sig;
+          it.angles.forEach((a) => {
+            const im = imgRefs.current[`${k}-${a}`];
+            if (!im) return;
+            im.style.opacity = a === best ? "1" : "0";
+            if (a === best) im.style.transform = mir ? "scaleX(-1)" : "";
+          });
+        }
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [n, radius]);
 
-  if (!n) return null;
-
   const down = (e) => { dragging.current = true; moved.current = 0; vel.current = 0; lastX.current = e.clientX; };
   const move = (e) => {
     if (!dragging.current) return;
     const dx = e.clientX - lastX.current; lastX.current = e.clientX;
-    ang.current += dx * 0.3; vel.current = dx * 0.09; moved.current += Math.abs(dx);
+    ang.current += dx * 0.25; vel.current = dx * 0.08; moved.current += Math.abs(dx);
   };
   const up = () => { dragging.current = false; };
 
   return (
     <section className="podium">
       <Reveal>
-        <div className="drop-eyebrow">Коллекция 001</div>
+        <div className="drop-eyebrow">Rovelle</div>
         <h2 className="podium-title">Подиум</h2>
-        <p className="podium-hint">Потяните, чтобы вращать · нажмите на вещь, чтобы открыть</p>
+        <p className="podium-hint">Потяните — вещи проедут по кругу и покажут себя со всех сторон</p>
       </Reveal>
       <div className="ring-stage" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} onPointerCancel={up}>
-        <div className="ring" ref={ringRef}>
-          {items.map((p, k) => (
-            <button
-              key={`${p.id}-${k}`} className="ring-card" aria-label={p.name}
-              style={{ width: cardW, height: cardH, marginLeft: -cardW / 2, marginTop: -cardH / 2, transform: `rotateY(${(360 / n) * k}deg) translateZ(${radius}px)` }}
-              onClick={() => { if (moved.current > 8) return; onOpen(p.id); }}
-            >
-              <span className="ring-media"><Media p={p} img={getGallery(p)[0]} /></span>
-              <span className="ring-meta"><b>{p.name}</b><i>{money(p.price)}</i></span>
-            </button>
-          ))}
+        <span className="pod-floor" aria-hidden="true" />
+        <div className="pod-space">
+          {PODIUM_ITEMS.map((it, k) => {
+            const p = productFor(it);
+            return (
+              <button
+                key={it.key} className="pod-card" aria-label={p ? p.name : it.title}
+                ref={(el) => (cardRefs.current[k] = el)}
+                style={{ width: cardW, height: cardH, marginLeft: -cardW / 2, marginTop: -cardH / 2 }}
+                onClick={() => { if (moved.current > 8) return; p ? onOpen(p.id) : onShopAll(); }}
+              >
+                <span className="pod-imgs">
+                  {it.angles.map((a) => (
+                    <img key={a} ref={(el) => (imgRefs.current[`${k}-${a}`] = el)}
+                      src={`/podium/${it.key}-${a}.jpg`} alt="" draggable={false}
+                      loading={a === 0 ? "eager" : "lazy"} style={{ opacity: a === 0 ? 1 : 0 }} />
+                  ))}
+                </span>
+                <span className="ring-meta"><b>{p ? p.name : it.title}</b><i>{p ? money(p.price) : it.sub}</i></span>
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="podium-cta">
@@ -982,7 +1044,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
   const goSlide = (link) => {
     if (link === "info") return onInfo();
     if (typeof link === "string" && link.startsWith("shop:")) return scrollToDrop(link.slice(5));
-    return scrollToDrop("Всё");
+    return scrollToDrop("Archive");
   };
   const banners = (settings.homeBanners && settings.homeBanners.length > 0)
     ? settings.homeBanners
@@ -990,7 +1052,7 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
 
   return (
     <>
-      <HeroSlider banners={banners} onGo={goSlide} />
+      <HeroSlider banners={banners} settings={settings} onGo={goSlide} />
 
       {/* ---------- Бегущая строка ---------- */}
       <div className="ticker" aria-hidden="true">
@@ -1014,15 +1076,15 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
       <Reveal><Worlds settings={settings} onGo={goSlide} /></Reveal>
 
       {/* ---------- 3D-подиум ---------- */}
-      <ShowcaseRing products={products} onOpen={onOpen} onShopAll={() => scrollToDrop("Всё")} />
+      <ShowcaseRing products={products} onOpen={onOpen} onShopAll={() => scrollToDrop("Archive")} />
 
       {/* ---------- Дроп ---------- */}
       <section className="drop" id="drop">
         <Reveal>
           <div className="drop-head">
             <div>
-              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 2" : "Коллекция 001 · Heritage"}</div>
-              <h2 className="drop-title">{activeCat === "Quiet Luxe" ? "Quiet Luxe" : "Первые вещи"}</h2>
+              <div className="drop-eyebrow">{activeCat === "Quiet Luxe" ? "Линия 02" : "Линия 01"}</div>
+              <h2 className="drop-title">{LINE_SHORT[activeCat] || "Коллекция"}</h2>
               <p className="drop-sub">Каждая вещь отобрана вручную и выпущена ограниченной партией. Подробности — внутри карточки.</p>
             </div>
             <div className="drop-tools">
@@ -1473,7 +1535,7 @@ function ProductView({ product: p, onBack, onAdd, onGoCart, isFav, onFav, inCart
 
       {related.length > 0 && (
         <div className="related">
-          <div className="drop-eyebrow">Коллекция 001</div>
+          <div className="drop-eyebrow">Rovelle</div>
           <h2 className="drop-title" style={{ marginBottom: 30 }}>Другие вещи</h2>
           <div className="grid">
             {related.map((r, i) => (
@@ -2351,13 +2413,13 @@ function SettingsForm({ settings, onSave, onCancel }) {
               </div>
               <div className="hbr-fields">
                 <div className="row-2">
-                  <Field label="Заголовок"><input value={bn.title} onChange={(e) => setBanner(i, "title", e.target.value)} placeholder="Коллекция 001" /></Field>
+                  <Field label="Заголовок"><input value={bn.title} onChange={(e) => setBanner(i, "title", e.target.value)} placeholder="Heritage" /></Field>
                   <Field label="Текст кнопки"><input value={bn.buttonText} onChange={(e) => setBanner(i, "buttonText", e.target.value)} placeholder="Смотреть" /></Field>
                 </div>
                 <Field label="Подпись (одна строка)"><input value={bn.subtitle} onChange={(e) => setBanner(i, "subtitle", e.target.value)} /></Field>
                 <Field label="Куда ведёт кнопка">
                   <select value={bn.link} onChange={(e) => setBanner(i, "link", e.target.value)}>
-                    <option value="shop">Вся коллекция</option>
+                    <option value="shop">Каталог</option>
                     <option value="shop:Archive">Линия Heritage</option>
                     <option value="shop:Quiet Luxe">Линия Quiet Luxe</option>
                     <option value="info">Страница «О бренде»</option>
@@ -3851,6 +3913,7 @@ html{scroll-behavior:smooth}
 .hs-inner>*{opacity:0;transform:translateY(26px);animation:hsrise .9s cubic-bezier(.2,.7,.2,1) forwards}
 .hs-inner>*:nth-child(2){animation-delay:.16s}
 .hs-inner>*:nth-child(3){animation-delay:.32s}
+.hs-inner>*:nth-child(4){animation-delay:.48s}
 @keyframes hsrise{to{opacity:1;transform:none}}
 .hs-title{font-family:var(--serif);font-weight:400;font-size:clamp(34px,5.4vw,64px);line-height:1.06;letter-spacing:.02em;margin:0}
 .hs-sub{font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.85);margin:0}
@@ -3868,6 +3931,13 @@ html{scroll-behavior:smooth}
 .hs-fill.hold{animation-play-state:paused}
 @keyframes hsfill{to{transform:scaleX(1)}}
 .hb-rv{position:absolute;inset:0;background-color:currentColor;-webkit-mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;opacity:.08}
+/* брендовый слайд: имя и крупный логотип на фоне */
+.hs-brand .hb-rv{-webkit-mask-size:min(58vw,560px);mask-size:min(58vw,560px);opacity:.1}
+.hs-eyebrow{font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.hs-wm{margin:0;line-height:1}
+.hs-wm .wm-letters{font-size:clamp(42px,9vw,92px);color:#fff}
+.hs-wm .wm-line{background:#fff;opacity:.8;height:2px}
+.hs-brand-sub{max-width:560px;text-transform:none;letter-spacing:.02em;font-size:15.5px;line-height:1.6}
 .hb-ph-0{background:radial-gradient(1100px 620px at 70% 16%,#3a5a8a,transparent 60%),linear-gradient(165deg,#243654,#2f4a73 55%,#1a2540);color:#fff}
 .hb-ph-1{background:radial-gradient(1000px 600px at 28% 18%,#46648e,transparent 62%),linear-gradient(205deg,#31507f,#1c2c49 65%);color:#dfe7f2}
 .hb-ph-1 .hs-title{color:#fff}
@@ -3902,17 +3972,18 @@ html{scroll-behavior:smooth}
 .podium{padding:90px 20px 84px;text-align:center;overflow:hidden}
 .podium-title{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.4vw,46px)}
 .podium-hint{color:var(--ink-soft);font-size:13px;letter-spacing:.05em;margin-top:10px}
-.ring-stage{position:relative;height:430px;max-width:1100px;margin:44px auto 6px;perspective:1400px;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
+.ring-stage{position:relative;height:480px;max-width:1100px;margin:40px auto 6px;perspective:1500px;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
 .ring-stage:active{cursor:grabbing}
-.ring{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d;will-change:transform}
-.ring-card{position:absolute;left:0;top:0;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.16);backface-visibility:hidden;-webkit-backface-visibility:hidden;padding:0;cursor:pointer}
-.ring-media{flex:1;overflow:hidden;background:#fff;pointer-events:none;min-height:0}
-.ring-media .garment{width:100%;height:100%;object-fit:cover}
-.ring-meta{display:flex;flex-direction:column;gap:2px;padding:9px 12px;text-align:left;pointer-events:none}
+.pod-space{position:absolute;left:50%;top:46%;width:0;height:0;transform-style:preserve-3d}
+.pod-card{position:absolute;left:0;top:0;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 22px 48px rgba(0,0,0,.16);padding:0;cursor:pointer;will-change:transform,opacity}
+.pod-imgs{position:relative;flex:1;background:#fff;pointer-events:none;min-height:0}
+.pod-imgs img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;transition:opacity .35s ease;opacity:0}
+.pod-floor{position:absolute;left:50%;bottom:6px;width:min(760px,88%);height:130px;transform:translateX(-50%);background:radial-gradient(ellipse at center,rgba(var(--glow),.16),transparent 65%);pointer-events:none}
+.ring-meta{display:flex;flex-direction:column;gap:2px;padding:9px 12px;text-align:left;pointer-events:none;background:var(--card)}
 .ring-meta b{font-family:var(--serif);font-weight:500;font-size:13.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ring-meta i{font-style:normal;font-size:12px;color:var(--ink-soft)}
 .podium-cta{margin-top:28px}
-@media(max-width:700px){.podium{padding:64px 14px 64px}.ring-stage{height:340px}}
+@media(max-width:700px){.podium{padding:64px 14px 64px}.ring-stage{height:380px}}
 
 /* ---- Главная: философия ---- */
 .philo{max-width:840px;margin:0 auto;padding:78px 24px 72px;text-align:center}
