@@ -60,6 +60,11 @@ const DEFAULT_SETTINGS = {
   line2Desc: "Дорогие ткани, идеальная посадка, ноль визуального шума. Для тех, кто уже всё доказал.",
   luxeText: "Шерсть, кашемир, благородный хлопок. Поло, брюки, полузамки — одежда в духе Loro Piana, но с честным ценником. Для мужчин, которым не нужно ничего доказывать.",
   manifesto: "Мы не печатаем логотипы.\nМы прошиваем историю.",
+  homeBanners: [
+    { id: "b1", image: null, title: "Коллекция 001", subtitle: "Первые вещи ROVELLE", buttonText: "Смотреть коллекцию", link: "shop" },
+    { id: "b2", image: null, title: "Heritage", subtitle: "Архив · Винтаж · Стокгольм", buttonText: "Открыть линию", link: "shop:Archive" },
+    { id: "b3", image: null, title: "Quiet Luxe", subtitle: "Тихая роскошь — скоро", buttonText: "Смотреть", link: "shop:Quiet Luxe" },
+  ],
   philosophyTitle: "Философия",
   philosophyText:
     "Rovelle — это одежда без логомании. Мы верим, что вещь должна говорить фактурой, швами и посадкой, а не надписью на груди. Каждая позиция отбирается вручную: архивные мотивы, честные материалы, ограниченные партии.",
@@ -687,50 +692,216 @@ function Monogram({ size = 150 }) {
   return <div className="mono-img" style={{ height: size, width: size * 1.033 }} role="img" aria-label="ROVELLE" />;
 }
 
-/* --------- Первый экран: свет за курсором + параллакс --------- */
-function BrandHero({ settings, activeCat, setActiveCat, onDrop, onInfo }) {
-  const ref = React.useRef(null);
-  const markRef = React.useRef(null);
+/* --------- Меньше движения: уважение системной настройки --------- */
+const REDUCED_MOTION = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/* --------- Первый экран: полноэкранное слайд-шоу (автоплей, свайп, Ken Burns) --------- */
+function HeroSlider({ banners, onGo }) {
+  const n = banners.length;
+  const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const touch = React.useRef(null);
+  const reduced = React.useMemo(REDUCED_MOTION, []);
+  const go = (k) => setI(((k % n) + n) % n);
+
+  // автоплей: пауза при наведении и когда вкладка скрыта; таймер обнуляется при ручном листании
   useEffect(() => {
-    const onScroll = () => {
-      if (markRef.current) markRef.current.style.transform = `translate(-50%, calc(-50% + ${window.scrollY * 0.22}px))`;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    if (n < 2 || paused || reduced) return;
+    const t = setInterval(() => { if (!document.hidden) setI((x) => (x + 1) % n); }, 6500);
+    return () => clearInterval(t);
+  }, [n, paused, reduced, i]);
 
+  // лёгкий параллакс фона за курсором
   const onMove = (e) => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    el.style.setProperty("--mx", `${e.clientX - r.left}px`);
-    el.style.setProperty("--my", `${e.clientY - r.top}px`);
+    const el = e.currentTarget, r = el.getBoundingClientRect();
+    el.style.setProperty("--px", `${(((e.clientX - r.left) / r.width) - 0.5) * -16}px`);
+    el.style.setProperty("--py", `${(((e.clientY - r.top) / r.height) - 0.5) * -10}px`);
   };
+  const resetPar = (e) => { e.currentTarget.style.setProperty("--px", "0px"); e.currentTarget.style.setProperty("--py", "0px"); };
 
   return (
-    <section className="bhero" ref={ref} onMouseMove={onMove}>
-      <div className="bhero-glow" aria-hidden="true" />
-      <div className="bhero-mark" ref={markRef} aria-hidden="true" />
-      <h1 className="bhero-name"><Wordmark animate /></h1>
-      <Reveal delay={700}><p className="bhero-tag">{settings.heroSub}</p></Reveal>
-      <Reveal delay={600}>
-        <div className="hero-lines">
-          {[["Archive", "Heritage"], ["Quiet Luxe", "Quiet Luxe"]].map(([val, label]) => (
-            <button key={val} className={`hero-line-btn ${activeCat === val ? "on" : ""}`} onClick={() => setActiveCat(val)}>
-              {label}
+    <section
+      className="hs" aria-roledescription="Слайд-шоу"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={(e) => { setPaused(false); resetPar(e); }}
+      onMouseMove={onMove}
+      onTouchStart={(e) => (touch.current = e.touches[0].clientX)}
+      onTouchEnd={(e) => {
+        if (touch.current == null) return;
+        const dx = e.changedTouches[0].clientX - touch.current;
+        if (Math.abs(dx) > 50) go(i + (dx < 0 ? 1 : -1));
+        touch.current = null;
+      }}
+    >
+      {banners.map((bn, k) => {
+        const src = bn.image ? imgFull(bn.image) : null;
+        const Tag = k === 0 ? "h1" : "h2";
+        return (
+          <div key={bn.id || k} className={`hs-slide ${k === i ? "on" : ""} ${src ? "" : `hs-empty hb-ph-${k % 3}`}`} aria-hidden={k !== i}>
+            {src
+              ? <img className="hs-img" src={src} alt={bn.title || "ROVELLE"} loading={k === 0 ? "eager" : "lazy"} />
+              : <span className="hb-rv" aria-hidden="true" />}
+            {src && <span className="hb-shade" aria-hidden="true" />}
+            {k === i && (
+              <div className="hs-inner">
+                {bn.title && <Tag className="hs-title">{bn.title}</Tag>}
+                {bn.subtitle && <p className="hs-sub">{bn.subtitle}</p>}
+                {bn.buttonText && <button className="hb-btn" onClick={() => onGo(bn.link)}>{bn.buttonText}</button>}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {n > 1 && (
+        <>
+          <button className="hs-nav hs-prev" onClick={() => go(i - 1)} aria-label="Предыдущий слайд"><ArrowLeft size={20} /></button>
+          <button className="hs-nav hs-next" onClick={() => go(i + 1)} aria-label="Следующий слайд"><ArrowRight size={20} /></button>
+          <div className="hs-dots">
+            {banners.map((_, k) => (
+              <button key={k} className={`hs-dot ${k === i ? "on" : ""}`} onClick={() => go(k)} aria-label={`Слайд ${k + 1}`}>
+                {k === i && !reduced && <span className={`hs-fill ${paused ? "hold" : ""}`} />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/* --------- Два мира: интерактивный сплит линий бренда --------- */
+function Worlds({ settings, onGo }) {
+  const worlds = [
+    { key: "Archive", cls: "world-h", no: "01", name: settings.line1Name || "Heritage", tag: "Архив · Винтаж · Стокгольм" },
+    { key: "Quiet Luxe", cls: "world-l", no: "02", name: settings.line2Name || "Quiet Luxe", tag: "Шерсть · Кашемир · Тишина" },
+  ];
+  return (
+    <section className="worlds">
+      {worlds.map((w) => (
+        <button key={w.key} className={`world ${w.cls}`} onClick={() => onGo(`shop:${w.key}`)}>
+          <span className="world-mark" aria-hidden="true" />
+          <span className="world-sheen" aria-hidden="true" />
+          <span className="world-in">
+            <span className="world-no">Линия {w.no}</span>
+            <span className="world-name">{w.name}</span>
+            <span className="world-tag">{w.tag}</span>
+            <span className="world-cta">Открыть <ArrowRight size={15} /></span>
+          </span>
+        </button>
+      ))}
+    </section>
+  );
+}
+
+/* --------- 3D-подиум: кольцо из вещей, вращается само и от перетаскивания --------- */
+function ShowcaseRing({ products, onOpen, onShopAll }) {
+  const items = React.useMemo(() => {
+    const base = products.filter((p) => p.stock > 0).slice(0, 10);
+    if (base.length < 3) return [];
+    const list = [...base];
+    for (let k = 0; list.length < 6; k++) list.push(base[k % base.length]); // добираем кольцо до 6 карточек
+    return list;
+  }, [products]);
+
+  const [cardW, setCardW] = useState(() => (typeof window !== "undefined" && window.innerWidth < 700 ? 150 : 205));
+  useEffect(() => {
+    const on = () => setCardW(window.innerWidth < 700 ? 150 : 205);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+
+  const n = items.length;
+  const radius = n ? Math.round(cardW / 2 / Math.tan(Math.PI / n)) + 46 : 0;
+  const cardH = Math.round(cardW * 1.42);
+
+  const ringRef = React.useRef(null);
+  const ang = React.useRef(0);        // текущий угол кольца
+  const vel = React.useRef(0);        // инерция после броска
+  const dragging = React.useRef(false);
+  const moved = React.useRef(0);      // сколько пикселей протянули (отличаем клик от драга)
+  const lastX = React.useRef(0);
+
+  useEffect(() => {
+    if (!n) return;
+    const reduced = REDUCED_MOTION();
+    let raf, last = performance.now();
+    const tick = (t) => {
+      const dt = Math.min(64, t - last); last = t;
+      if (!dragging.current) {
+        if (!reduced && !document.hidden) ang.current += dt * 0.006; // ~6°/сек в покое
+        ang.current += vel.current; vel.current *= 0.95;
+      }
+      if (ringRef.current) ringRef.current.style.transform = `translateZ(${-radius}px) rotateX(-4deg) rotateY(${ang.current}deg)`;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [n, radius]);
+
+  if (!n) return null;
+
+  const down = (e) => { dragging.current = true; moved.current = 0; vel.current = 0; lastX.current = e.clientX; };
+  const move = (e) => {
+    if (!dragging.current) return;
+    const dx = e.clientX - lastX.current; lastX.current = e.clientX;
+    ang.current += dx * 0.3; vel.current = dx * 0.09; moved.current += Math.abs(dx);
+  };
+  const up = () => { dragging.current = false; };
+
+  return (
+    <section className="podium">
+      <Reveal>
+        <div className="drop-eyebrow">Коллекция 001</div>
+        <h2 className="podium-title">Подиум</h2>
+        <p className="podium-hint">Потяните, чтобы вращать · нажмите на вещь, чтобы открыть</p>
+      </Reveal>
+      <div className="ring-stage" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} onPointerCancel={up}>
+        <div className="ring" ref={ringRef}>
+          {items.map((p, k) => (
+            <button
+              key={`${p.id}-${k}`} className="ring-card" aria-label={p.name}
+              style={{ width: cardW, height: cardH, marginLeft: -cardW / 2, marginTop: -cardH / 2, transform: `rotateY(${(360 / n) * k}deg) translateZ(${radius}px)` }}
+              onClick={() => { if (moved.current > 8) return; onOpen(p.id); }}
+            >
+              <span className="ring-media"><Media p={p} img={getGallery(p)[0]} /></span>
+              <span className="ring-meta"><b>{p.name}</b><i>{money(p.price)}</i></span>
             </button>
           ))}
         </div>
-      </Reveal>
-      <Reveal delay={850}>
-        <div className="bhero-cta">
-          <button className="btn-primary" onClick={onDrop}>Смотреть коллекцию <ArrowRight size={15} /></button>
-          <button className="btn-ghost" onClick={onInfo}>О бренде</button>
-        </div>
-      </Reveal>
-      <div className="bhero-est">{settings.heroEyebrow} · <RotatingWord words={["Архив", "Стокгольм", "Винтаж", "Без логотипов"]} /></div>
-      <div className="bhero-scroll" aria-hidden="true"><span /></div>
+      </div>
+      <div className="podium-cta">
+        <button className="btn-primary" onClick={onShopAll}>Смотреть всю коллекцию <ArrowRight size={15} /></button>
+      </div>
+    </section>
+  );
+}
+
+/* --------- Манифест: пословное появление при прокрутке --------- */
+function Manifesto({ text, onInfo }) {
+  const ref = React.useRef(null);
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (es) => es.forEach((e) => { if (e.isIntersecting) { setOn(true); io.disconnect(); } }),
+      { threshold: 0.35 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  let w = 0;
+  return (
+    <section ref={ref} className={`manif ${on ? "on" : ""}`}>
+      <Monogram size={72} />
+      {(text || "").split("\n").filter(Boolean).map((line, li) => (
+        <p className="manif-line" key={li}>
+          {line.split(" ").map((word, wi) => (
+            <span key={wi} style={{ transitionDelay: `${360 + w++ * 100}ms` }}>{word}&nbsp;</span>
+          ))}
+        </p>
+      ))}
+      <button className="manif-link" onClick={onInfo}>О бренде <ArrowRight size={14} /></button>
     </section>
   );
 }
@@ -804,9 +975,19 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
   const luxeEmpty = activeCat === "Quiet Luxe" && list.length === 0;
   const tickerWords = ["Heritage", "Stockholm", "Vintage", "Тихая роскошь", "No logo", "Quiet Luxe", "Детали", "Посадка"];
 
+  // куда ведут кнопки слайдов и «миров»: линия каталога или страница «О бренде»
+  const goSlide = (link) => {
+    if (link === "info") return onInfo();
+    if (typeof link === "string" && link.startsWith("shop:")) return scrollToDrop(link.slice(5));
+    return scrollToDrop("Всё");
+  };
+  const banners = (settings.homeBanners && settings.homeBanners.length > 0)
+    ? settings.homeBanners
+    : DEFAULT_SETTINGS.homeBanners;
+
   return (
     <>
-      <BrandHero settings={settings} activeCat={activeCat} setActiveCat={setActiveCat} onDrop={() => scrollToDrop("Archive")} onInfo={onInfo} />
+      <HeroSlider banners={banners} onGo={goSlide} />
 
       {/* ---------- Бегущая строка ---------- */}
       <div className="ticker" aria-hidden="true">
@@ -816,6 +997,12 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
           ))}
         </div>
       </div>
+
+      {/* ---------- Два мира ---------- */}
+      <Reveal><Worlds settings={settings} onGo={goSlide} /></Reveal>
+
+      {/* ---------- 3D-подиум ---------- */}
+      <ShowcaseRing products={products} onOpen={onOpen} onShopAll={() => scrollToDrop("Всё")} />
 
       {/* ---------- Дроп ---------- */}
       <section className="drop" id="drop">
@@ -851,88 +1038,18 @@ function CatalogView({ settings, products, activeCat, setActiveCat, onOpen, onIn
         ) : list.length === 0 ? (
           <p className="drop-empty">{q ? "Ничего не нашлось — попробуйте другой запрос." : "Вещи скоро появятся."}</p>
         ) : (
-          <div className="drop-list">
+          <div className="grid">
             {list.map((p, i) => (
-              <React.Fragment key={p.id}>
-              <Reveal delay={(i % 2) * 80} className={i % 2 ? "rv-right" : "rv-left"}>
-                <article className={`piece ${i % 2 ? "piece-flip" : ""}`}>
-                  <PieceMedia p={p} onOpen={() => onOpen(p.id)} />
-                  <div className="piece-info">
-                    <div className="piece-no">{String(i + 1).padStart(2, "0")} <span>/ {String(list.length).padStart(2, "0")}</span></div>
-                    <h3 className="piece-name">{p.name}</h3>
-                    <div className="piece-meta">{LINE_LABELS[p.cat] || p.cat} · {typeLabel(p.type)}</div>
-                    <ExpandableText text={p.desc} className="piece-desc" />
-                    {(p.materials && p.materials.length > 0) ? (
-                      <div className="piece-mats">
-                        {p.materials.map((m, mi) => (
-                          <div className="piece-material" key={mi}>
-                            <div className="pm-swatch">
-                              {m.photo ? <img src={imgThumb(m.photo)} alt={m.name} loading="lazy" />
-                                : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
-                            </div>
-                            <div className="pm-text">
-                              <span className="pm-label">Материал</span>
-                              <span className="pm-value">{m.name}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : p.material && (
-                      <div className="piece-material">
-                        <div className="pm-swatch">
-                          {getGallery(p).length > 1
-                            ? <img src={getGallery(p)[getGallery(p).length - 1].thumb} alt="Материал" loading="lazy" />
-                            : <span className="pm-color" style={{ background: (p.colors && p.colors[0]) || "#8f8677" }} />}
-                        </div>
-                        <div className="pm-text">
-                          <span className="pm-label">Материал</span>
-                          <span className="pm-value">{p.material}</span>
-                        </div>
-                      </div>
-                    )}
-                    <div className="piece-sizes">{(p.sizes || []).map((s) => <span key={s}>{s}</span>)}</div>
-                    <div className="piece-row">
-                      <div className="piece-price">
-                        {p.oldPrice > 0 && <span className="old">{money(p.oldPrice)}</span>}
-                        <span className={p.oldPrice > 0 ? "sale-price" : ""}>{money(p.price)}</span>
-                      </div>
-                      <div className="piece-actions">
-                        <button className={`fav-btn ${favorites.includes(p.id) ? "fav-on" : ""}`} onClick={() => onFav(p.id)} aria-label="В избранное">
-                          <Heart size={17} fill={favorites.includes(p.id) ? "currentColor" : "none"} />
-                        </button>
-                        <button className="btn-primary" onClick={() => onOpen(p.id)}>Смотреть вещь</button>
-                      </div>
-                    </div>
-                    {p.stock > 0 && p.stock <= 3 && <div className="piece-low">Осталось {p.stock} шт</div>}
-                    {p.stock <= 0 && <div className="piece-out">Распродано</div>}
-                  </div>
-                </article>
+              <Reveal key={p.id} delay={(i % 4) * 70}>
+                <ProductCard p={p} onOpen={() => onOpen(p.id)} isFav={favorites.includes(p.id)} onFav={() => onFav(p.id)} />
               </Reveal>
-              </React.Fragment>
             ))}
           </div>
         )}
       </section>
 
-      {/* ---------- Quiet Luxe — тёмный тизер ---------- */}
-      <section className="luxe" onMouseMove={(e) => {
-        const el = e.currentTarget; const r = el.getBoundingClientRect();
-        el.style.setProperty("--mx", `${e.clientX - r.left}px`);
-        el.style.setProperty("--my", `${e.clientY - r.top}px`);
-      }}>
-        <div className="luxe-glow" aria-hidden="true" />
-        <Reveal>
-          <div className="luxe-inner">
-            <div className="luxe-eyebrow">Линия 2 · скоро</div>
-            <h2 className="luxe-title">Quiet <em>Luxe</em></h2>
-            {settings.telegram && (
-              <a className="luxe-btn" href={settings.telegram} target="_blank" rel="noreferrer">
-                <Send size={15} /> Узнать о запуске первым
-              </a>
-            )}
-          </div>
-        </Reveal>
-      </section>
+      {/* ---------- Манифест ---------- */}
+      <Manifesto text={settings.manifesto || DEFAULT_SETTINGS.manifesto} onInfo={onInfo} />
 
       {/* ---------- Дополнительная информация ---------- */}
       <section className="info-block">
@@ -2141,6 +2258,21 @@ function SettingsForm({ settings, onSave, onCancel }) {
   const [err, setErr] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
 
+  // --- слайды главной ---
+  const [bBusy, setBBusy] = useState(-1);
+  const hbList = f.homeBanners || [];
+  const setBanner = (i, k, v) => set("homeBanners", hbList.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const moveBanner = (i, d) => { const a = [...hbList]; const t = a[i]; a[i] = a[i + d]; a[i + d] = t; set("homeBanners", a); };
+  const delBanner = (i) => set("homeBanners", hbList.filter((_, j) => j !== i));
+  const addBanner = () => set("homeBanners", [...hbList, { id: `b${Date.now()}`, image: null, title: "", subtitle: "", buttonText: "Смотреть", link: "shop" }]);
+  const onBannerFile = async (i, file) => {
+    if (!file) return;
+    setBBusy(i); setErr("");
+    try { const img = await uploadProductImage(file); setBanner(i, "image", img); }
+    catch (e2) { setErr("Не удалось загрузить фото слайда"); }
+    setBBusy(-1);
+  };
+
   const uploadLogo = async (fileList) => {
     const file = fileList?.[0];
     if (!file) return;
@@ -2178,13 +2310,43 @@ function SettingsForm({ settings, onSave, onCancel }) {
         </div>
 
         <div className="form-block">
-          <h3 className="block-title">Главный экран</h3>
-          <Field label="Надпись над заголовком"><input value={f.heroEyebrow} onChange={(e) => set("heroEyebrow", e.target.value)} /></Field>
-          <div className="row-2">
-            <Field label="Заголовок, 1-я строка"><input value={f.heroTitle1} onChange={(e) => set("heroTitle1", e.target.value)} /></Field>
-            <Field label="Заголовок, 2-я строка (акцент)"><input value={f.heroTitleEm} onChange={(e) => set("heroTitleEm", e.target.value)} /></Field>
-          </div>
-          <Field label="Подзаголовок"><textarea rows={2} value={f.heroSub} onChange={(e) => set("heroSub", e.target.value)} /></Field>
+          <h3 className="block-title">Главная — слайды</h3>
+          <p className="form-hint" style={{ marginTop: 0, marginBottom: 14 }}>Слайд-шоу во весь экран: кадры сменяются сами, покупатель может листать. Фото горизонтальные, шириной от 1600 px. Пока фото не загружено — на сайте фирменная заглушка.</p>
+          {hbList.map((bn, i) => (
+            <div className="hbr" key={bn.id || i}>
+              <div className="hbr-prev">
+                {bn.image ? <img src={imgThumb(bn.image)} alt="" /> : <span>Нет фото</span>}
+              </div>
+              <div className="hbr-fields">
+                <div className="row-2">
+                  <Field label="Заголовок"><input value={bn.title} onChange={(e) => setBanner(i, "title", e.target.value)} placeholder="Коллекция 001" /></Field>
+                  <Field label="Текст кнопки"><input value={bn.buttonText} onChange={(e) => setBanner(i, "buttonText", e.target.value)} placeholder="Смотреть" /></Field>
+                </div>
+                <Field label="Подпись (одна строка)"><input value={bn.subtitle} onChange={(e) => setBanner(i, "subtitle", e.target.value)} /></Field>
+                <Field label="Куда ведёт кнопка">
+                  <select value={bn.link} onChange={(e) => setBanner(i, "link", e.target.value)}>
+                    <option value="shop">Вся коллекция</option>
+                    <option value="shop:Archive">Линия Heritage</option>
+                    <option value="shop:Quiet Luxe">Линия Quiet Luxe</option>
+                    <option value="info">Страница «О бренде»</option>
+                  </select>
+                </Field>
+                <div className="hbr-actions">
+                  <label className="btn-ghost">
+                    {bBusy === i ? "Загрузка…" : bn.image ? "Заменить фото" : "Загрузить фото"}
+                    <input type="file" accept="image/*" hidden disabled={bBusy !== -1}
+                      onChange={(e) => { onBannerFile(i, e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
+                  {bn.image && <button type="button" className="btn-ghost" onClick={() => setBanner(i, "image", null)}>Убрать фото</button>}
+                  <button type="button" className="btn-ghost" onClick={() => moveBanner(i, -1)} disabled={i === 0}>↑</button>
+                  <button type="button" className="btn-ghost" onClick={() => moveBanner(i, 1)} disabled={i === hbList.length - 1}>↓</button>
+                  <button type="button" className="btn-ghost hbr-del" onClick={() => delBanner(i)}>Удалить</button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {hbList.length < 5 && <button type="button" className="btn-ghost" onClick={addBanner}>+ Добавить слайд</button>}
+          <Field label="Подпись бренда в подвале"><textarea rows={2} value={f.heroSub} onChange={(e) => set("heroSub", e.target.value)} /></Field>
         </div>
 
         <div className="form-block">
@@ -3640,5 +3802,106 @@ html{scroll-behavior:smooth}
 .xt-more{display:inline-block;margin:-8px 0 14px;font-size:12.5px;letter-spacing:.04em;color:var(--accent);border-bottom:1px solid currentColor;padding-bottom:1px;transition:opacity .2s}
 .xt-more:hover{opacity:.7}
 
+/* ---- Главная: слайд-шоу ---- */
+.hs{position:relative;height:100svh;min-height:540px;overflow:hidden;color:#fff}
+.hs-slide{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;text-align:center;opacity:0;transition:opacity 1.1s ease;pointer-events:none}
+.hs-slide.on{opacity:1;z-index:1;pointer-events:auto}
+.hs-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;translate:var(--px,0) var(--py,0);transition:translate .6s ease-out;scale:1.03}
+.hs-slide.on .hs-img{animation:hszoom 9s ease-out forwards}
+@keyframes hszoom{from{transform:scale(1.09)}to{transform:scale(1)}}
+.hs-slide .hb-rv{translate:var(--px,0) var(--py,0);transition:translate .6s ease-out}
+.hs-slide.on .hb-rv{animation:hsmark 9s ease-out forwards}
+@keyframes hsmark{from{scale:1.14}to{scale:1}}
+.hb-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,14,24,.12),transparent 38%,transparent 52%,rgba(10,14,24,.58))}
+.hs-inner{position:relative;z-index:2;padding:0 24px clamp(64px,11vh,120px);max-width:820px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.hs-empty{align-items:center}
+.hs-empty .hs-inner{padding-bottom:0}
+.hs-inner>*{opacity:0;transform:translateY(26px);animation:hsrise .9s cubic-bezier(.2,.7,.2,1) forwards}
+.hs-inner>*:nth-child(2){animation-delay:.16s}
+.hs-inner>*:nth-child(3){animation-delay:.32s}
+@keyframes hsrise{to{opacity:1;transform:none}}
+.hs-title{font-family:var(--serif);font-weight:400;font-size:clamp(34px,5.4vw,64px);line-height:1.06;letter-spacing:.02em;margin:0}
+.hs-sub{font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.85);margin:0}
+.hb-btn{border:1px solid rgba(255,255,255,.85);color:#fff;background:transparent;padding:13px 32px;font-size:12.5px;letter-spacing:.22em;text-transform:uppercase;transition:background .3s,color .3s;margin-top:6px}
+.hb-btn:hover{background:#fff;color:#1c2740}
+.hs-nav{position:absolute;top:50%;margin-top:-23px;z-index:3;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:rgba(20,22,30,.22);backdrop-filter:blur(6px);color:#fff;border:1px solid rgba(255,255,255,.35);opacity:0;transition:opacity .3s,background .2s}
+.hs:hover .hs-nav{opacity:1}
+.hs-nav:hover{background:rgba(20,22,30,.45)}
+.hs-prev{left:18px}.hs-next{right:18px}
+@media(hover:none){.hs-nav{display:none}}
+.hs-dots{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:8px;padding:9px 12px;border-radius:100px;background:rgba(20,22,30,.28);backdrop-filter:blur(8px)}
+.hs-dot{position:relative;width:42px;height:3px;border-radius:2px;background:rgba(255,255,255,.32);overflow:hidden;padding:0}
+.hs-dot.on{background:rgba(255,255,255,.45)}
+.hs-fill{position:absolute;inset:0;background:#fff;transform:scaleX(0);transform-origin:left;animation:hsfill 6.5s linear forwards}
+.hs-fill.hold{animation-play-state:paused}
+@keyframes hsfill{to{transform:scaleX(1)}}
+.hb-rv{position:absolute;inset:0;background-color:currentColor;-webkit-mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;mask:url(/logo-mark.svg) center/min(38vw,360px) no-repeat;opacity:.08}
+.hb-ph-0{background:radial-gradient(1100px 620px at 70% 16%,#3a5a8a,transparent 60%),linear-gradient(165deg,#243654,#2f4a73 55%,#1a2540);color:#fff}
+.hb-ph-1{background:#efe9df;color:#2f4a73}
+.hb-ph-1 .hs-title{color:#1c2740}
+.hb-ph-1 .hs-sub{color:#5a6478}
+.hb-ph-1 .hb-btn{border-color:#2f4a73;color:#2f4a73}
+.hb-ph-1 .hb-btn:hover{background:#2f4a73;color:#fff}
+.hb-ph-2{background:#16130f;color:#c99a6b}
+.hb-ph-2 .hs-title{color:#efe7d8}
+.hb-ph-2 .hs-sub{color:rgba(239,231,216,.72)}
+.hb-ph-2 .hb-btn{border-color:#c99a6b;color:#c99a6b}
+.hb-ph-2 .hb-btn:hover{background:#c99a6b;color:#16130f}
+
+/* ---- Главная: два мира ---- */
+.worlds{display:flex;min-height:72vh}
+.world{position:relative;flex:1;overflow:hidden;display:flex;align-items:flex-end;padding:0;text-align:left;transition:flex .85s cubic-bezier(.3,.7,.2,1)}
+.world:hover{flex:1.55}
+.world-h{background:radial-gradient(900px 600px at 75% 20%,#3a5a8a,transparent 60%),linear-gradient(160deg,#243654,#2f4a73 55%,#1a2540);color:#fff}
+.world-l{background:radial-gradient(900px 600px at 30% 15%,#2c2317,transparent 55%),linear-gradient(200deg,#241d14,#16130f 60%);color:#c99a6b}
+.world-mark{position:absolute;inset:0;background:currentColor;-webkit-mask:url(/logo-mark.svg) center/min(28vw,300px) no-repeat;mask:url(/logo-mark.svg) center/min(28vw,300px) no-repeat;opacity:.07;transition:transform 1.2s ease,opacity .6s}
+.world:hover .world-mark{transform:scale(1.12) rotate(-3deg);opacity:.13}
+.world-sheen{position:absolute;top:0;bottom:0;left:-70%;width:45%;background:linear-gradient(80deg,transparent,rgba(255,255,255,.09),transparent);transform:skewX(-14deg)}
+.world:hover .world-sheen{left:135%;transition:left 1.1s ease}
+.world-in{position:relative;z-index:2;display:flex;flex-direction:column;gap:10px;padding:clamp(28px,5vw,56px)}
+.world-no{font-size:11px;letter-spacing:.3em;text-transform:uppercase;opacity:.65}
+.world-name{font-family:var(--serif);font-size:clamp(34px,4.6vw,58px);line-height:1.05}
+.world-l .world-name{color:#efe7d8}
+.world-tag{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
+.world-cta{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;opacity:0;transform:translateY(8px);transition:opacity .4s .1s,transform .4s .1s}
+.world:hover .world-cta{opacity:1;transform:none}
+@media(hover:none){.world-cta{opacity:1;transform:none}}
+@media(max-width:760px){.worlds{flex-direction:column;min-height:0}.world{min-height:42vh}.world:hover{flex:1}}
+
+/* ---- Главная: 3D-подиум ---- */
+.podium{padding:90px 20px 84px;text-align:center;overflow:hidden}
+.podium-title{font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.4vw,46px)}
+.podium-hint{color:var(--ink-soft);font-size:13px;letter-spacing:.05em;margin-top:10px}
+.ring-stage{position:relative;height:430px;max-width:1100px;margin:44px auto 6px;perspective:1400px;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
+.ring-stage:active{cursor:grabbing}
+.ring{position:absolute;left:50%;top:50%;width:0;height:0;transform-style:preserve-3d;will-change:transform}
+.ring-card{position:absolute;left:0;top:0;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.16);backface-visibility:hidden;-webkit-backface-visibility:hidden;padding:0;cursor:pointer}
+.ring-media{flex:1;overflow:hidden;background:#fff;pointer-events:none;min-height:0}
+.ring-media .garment{width:100%;height:100%;object-fit:cover}
+.ring-meta{display:flex;flex-direction:column;gap:2px;padding:9px 12px;text-align:left;pointer-events:none}
+.ring-meta b{font-family:var(--serif);font-weight:500;font-size:13.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ring-meta i{font-style:normal;font-size:12px;color:var(--ink-soft)}
+.podium-cta{margin-top:28px}
+@media(max-width:700px){.podium{padding:64px 14px 64px}.ring-stage{height:340px}}
+
+/* ---- Главная: манифест ---- */
+.manif{max-width:880px;margin:0 auto;padding:104px 24px 96px;text-align:center}
+.manif .mono-img{margin:0 auto 34px;opacity:.9}
+.manif-line{font-family:var(--serif);font-size:clamp(27px,4.6vw,50px);line-height:1.3;color:var(--ink)}
+.manif-line span{display:inline-block;opacity:0;transform:translateY(.6em) rotate(2deg);transition:opacity .7s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
+.manif.on .manif-line span{opacity:1;transform:none}
+.manif-link{margin-top:38px;display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);border-bottom:1px solid var(--line);padding-bottom:6px;transition:color .2s,border-color .2s}
+.manif-link:hover{color:var(--ink);border-color:var(--ink)}
+
+/* ---- Настройки: слайды главной ---- */
+.hbr{display:grid;grid-template-columns:128px 1fr;gap:14px;padding:14px;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;background:var(--paper)}
+@media(max-width:560px){.hbr{grid-template-columns:1fr}}
+.hbr-prev{width:128px;height:84px;border-radius:8px;overflow:hidden;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;color:var(--ink-soft)}
+.hbr-prev img{width:100%;height:100%;object-fit:cover}
+.hbr-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;margin-bottom:8px}
+.hbr-actions .btn-ghost{padding:8px 13px;font-size:12px;letter-spacing:.04em}
+.hbr-del{color:#a33333}
+
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media(prefers-reduced-motion:reduce){.hs-inner>*{opacity:1;transform:none}.hs-slide{transition:opacity .01s!important}}
 `;
